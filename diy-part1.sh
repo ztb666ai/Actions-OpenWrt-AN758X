@@ -17,7 +17,7 @@ mkdir -p "$PKG_DIR"
 # ---------------------------------------------------------
 # 插件开关（默认只开 argon 主题，其余全关）
 # ---------------------------------------------------------
-ADD_ARGON=true         # sbwml 新版 argon 主题 + argon-config（会替换 feeds 旧版）
+ADD_ARGON=false         # sbwml 新版 argon 主题 + argon-config（会替换 feeds 旧版）
 ADD_PASSWALL=false     # luci-app-passwall（含依赖源）
 ADD_OPENCLASH=false    # luci-app-openclash ⚠ 依赖 Ruby/Rust，编译极慢
 ADD_MOSDNS=false       # luci-app-mosdns + v2ray-geodata
@@ -97,5 +97,9 @@ if [ -n "$(ls -A "$PKG_DIR" 2>/dev/null)" ]; then
 else
   echo "未启用任何第三方插件"
 fi
+
+# change the default theme:
+sed -i 's/+luci-theme-bootstrap/+luci-theme-argon/g; s/default Bootstrap theme/Argon theme/g' feeds/luci/collections/luci-light/Makefile
+./scripts/feeds install -a
 
 echo "🎉 diy-part1.sh 执行完毕"
