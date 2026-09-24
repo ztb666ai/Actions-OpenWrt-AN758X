@@ -6,7 +6,7 @@ on:
       device:
         description: '设备机型'
         required: true
-        default: 'fiberhome_hg5585f-ct'
+        default: 'nokia_xg-040g-md-ubi'
         type: choice
         options:
           - fiberhome_hg5585f-cu
