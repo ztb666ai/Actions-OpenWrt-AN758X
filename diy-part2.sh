@@ -43,6 +43,7 @@ echo "=========================================="
 CG="package/base-files/files/bin/config_generate"
 if [ -f "$CG" ]; then
     sed -i 's/ImmortalWrt/PonWrt/g; s/OpenWrt/PonWrt/g' "$CG"
+    sed -i 's/192.168.1.1/192.168.2.1/g' package/base-files/files/bin/config_generate
     echo "[diy-part2] 主机名已改为 PonWrt"
 else
     echo "[diy-part2] 未找到 $CG，跳过主机名修改"
@@ -162,6 +163,36 @@ exit 0
 EOF
 
 chmod +x files/etc/uci-defaults/* 2>/dev/null || true
+
+# ---------------------------------------------------------
+# Remove legacy iptables dependencies from Docker (dockerd)
+# ---------------------------------------------------------
+DOCKER_MAKEFILE="feeds/packages/utils/dockerd/Makefile"
+
+if [ -f "$DOCKER_MAKEFILE" ]; then
+    echo "Patching Docker Makefile to remove legacy iptables dependencies..."
+    # Remove iptables modules from the DEPENDS line
+    sed -i 's/+iptables-mod-extra//g' "$DOCKER_MAKEFILE"
+    sed -i 's/+iptables//g' "$DOCKER_MAKEFILE"
+    sed -i 's/+ip6tables//g' "$DOCKER_MAKEFILE"
+    sed -i 's/+kmod-ipt-nat6//g' "$DOCKER_MAKEFILE"
+    sed -i 's/+kmod-ipt-nat//g' "$DOCKER_MAKEFILE"
+    sed -i 's/+kmod-ipt-physdev//g' "$DOCKER_MAKEFILE"
+    # Clean up any trailing double plusses or spaces left over from deletions
+    sed -i 's/++/\+/g' "$DOCKER_MAKEFILE"
+    sed -i 's/ \+/ /g' "$DOCKER_MAKEFILE"
+else
+    echo "Warning: Docker Makefile not found at $DOCKER_MAKEFILE"
+fi
+
+# Force Docker daemon to use nftables natively
+mkdir -p files/etc/docker
+cat <<EOF > files/etc/docker/daemon.json
+{
+  "iptables": false,
+  "nftables": "enabled"
+}
+EOF
 
 # =================================================================
 # 7. 输出核对
