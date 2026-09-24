@@ -90,4 +90,8 @@ else
   echo "未启用任何第三方插件"
 fi
 
+# change the default theme:
+sed -i 's/+luci-theme-bootstrap/+luci-theme-argon/g; s/default Bootstrap theme/Argon theme/g' feeds/luci/collections/luci-light/Makefile
+./scripts/feeds install -a
+
 echo "🎉 diy-part1.sh 执行完毕"
