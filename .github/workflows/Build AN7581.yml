@@ -36,8 +36,11 @@ on:
 
 env:
   REPO_URL: https://github.com/pbs05/ponwrt.git
+  CONFIG_FILE: configs-q/an7581-nokia_xg-040g-md-ubi.config
   DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
+  UPLOAD_BIN_DIR: true
+  UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
 
