@@ -1,0 +1,158 @@
+#!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+#
+# natmode-apply —— 应用 / 查询当前 NAT 模式
+#
+# 用法：
+#   natmode-apply apply    应用 /etc/config/natmode 里配置的模式
+#   natmode-apply status   输出当前模式及实际生效状态，供页面显示
+#
+# 三档实现原理：
+#
+#   fullcone (NAT1)
+#     firewall4 的 defaults.fullcone=1。
+#     fw4 会在 srcnat/dstnat 链里生成 fullcone 表达式，
+#     内核 kmod-nft-fullcone 维护第二张哈希表（按转换后 3-tuple 索引），
+#     实现「端点无关映射 + 端点无关过滤」。
+#
+#   restricted (NAT3)
+#     defaults.fullcone=0，走 fw4 原生 masquerade。
+#     Linux netfilter 的 SNAT/masquerade 会尽量复用同一公网端口（端点无关映射），
+#     但入站只放行「内网主动联系过的 IP:端口」（地址+端口相关过滤），
+#     即 RFC 3489 的 Port Restricted Cone = NAT3。
+#     ⚠️ 标准 netfilter 无法做出精确的 NAT2（仅地址受限、端口不受限），故本档标为 NAT3。
+#
+#   symmetric (NAT4)
+#     defaults.fullcone=0，并在 fw4 各 srcnat_* 链首插入
+#       meta nfproto ipv4 masquerade fully-random
+#     使每条新连接都完全随机选源端口 → 映射不可预测，打洞基本失败。
+#     严格说这是「随机端口」而非 RFC 定义的「按目的地独立映射」，
+#     但对 P2P / STUN 的效果等同于对称型 NAT4。
+#     ⚠️ fw4 reload 会重建链，故本脚本需在 fw4 之后执行（init.d START=25），
+#        并挂了 procd_reload_trigger firewall。
+
+CONF_MODE="natmode.main.mode"
+
+log() {
+	logger -t natmode "$@"
+}
+
+get_mode() {
+	m="$(uci -q get "$CONF_MODE" 2>/dev/null)"
+	case "$m" in
+		fullcone|restricted|symmetric) echo "$m" ;;
+		*) echo "fullcone" ;;
+	esac
+}
+
+# 把 fullcone 开关写入 firewall 配置（幂等）
+set_fullcone() {
+	local val="$1"
+	local cur
+	cur="$(uci -q get firewall.@defaults[0].fullcone 2>/dev/null)"
+	if [ "$cur" != "$val" ]; then
+		uci set firewall.@defaults[0].fullcone="$val" 2>/dev/null || return 1
+		uci commit firewall
+	fi
+	return 0
+}
+
+# 在 fw4 的 srcnat 链首插入 / 移除 fully-random 规则
+nft_random() {
+	local action="$1" ch h
+
+	for ch in $(nft list chains inet fw4 2>/dev/null | \
+	            sed -n 's/^[[:space:]]*chain \(srcnat_[A-Za-z0-9_]*\).*/\1/p'); do
+		if [ "$action" = "add" ]; then
+			# 已存在则跳过，避免重复插入
+			nft list chain inet fw4 "$ch" 2>/dev/null | grep -q 'fully-random' && continue
+			nft insert rule inet fw4 "$ch" meta nfproto ipv4 masquerade fully-random 2>/dev/null
+			[ $? -eq 0 ] && log "已插入 fully-random 到 $ch"
+		else
+			h="$(nft -a list chain inet fw4 "$ch" 2>/dev/null | \
+			     grep 'fully-random' | grep -oE 'handle [0-9]+' | awk '{print $2}' | head -1)"
+			[ -n "$h" ] && nft delete rule inet fw4 "$ch" handle "$h" 2>/dev/null
+		fi
+	done
+}
+
+do_apply() {
+	local mode
+	mode="$(get_mode)"
+
+	case "$mode" in
+		fullcone)
+			set_fullcone 1
+			nft_random del
+			;;
+		restricted)
+			set_fullcone 0
+			nft_random del
+			;;
+		symmetric)
+			set_fullcone 0
+			;;
+	esac
+
+	# 重载防火墙使 fullcone 开关生效（对称型的 nft 规则须在此之后插入）
+	/etc/init.d/firewall reload >/dev/null 2>&1 || fw4 reload >/dev/null 2>&1
+
+	if [ "$mode" = "symmetric" ]; then
+		nft_random add
+	fi
+
+	log "NAT 模式已应用: $mode"
+	echo "$mode"
+}
+
+do_status() {
+	local mode fc rand effective
+	mode="$(get_mode)"
+	fc="$(uci -q get firewall.@defaults[0].fullcone 2>/dev/null)"
+	rand="$(nft list chain inet fw4 srcnat_wan 2>/dev/null | grep -c 'fully-random')"
+	fc="${fc:-0}"
+	rand="${rand:-0}"
+
+	# 从「实际生效的 nftables / UCI 状态」反推真实模式。
+	# 用途：防火墙页面（网络 → 防火墙 → 常规设置）里的
+	# "启用 FullCone NAT" 写的就是 firewall.@defaults[0].fullcone，
+	# 与本插件是同一个 UCI 键。若用户在那边直接改，natmode.main.mode
+	# 不会跟着变 —— 这里把差异暴露出来，避免页面显示与实际不符。
+	if [ "$fc" = "1" ]; then
+		effective="fullcone"
+	elif [ "$rand" != "0" ]; then
+		effective="symmetric"
+	else
+		effective="restricted"
+	fi
+
+	echo "mode=$mode"
+	echo "effective=$effective"
+	echo "fullcone=$fc"
+	echo "random_rules=$rand"
+
+	# flow offload 会把已建立连接卸载到快转路径，绕过 conntrack，
+	# 与 fullcone 的第二张哈希表 / fully-random 规则都存在相互干扰，
+	# 这里一并上报，便于页面提示。
+	local fo=""
+	if [ "$(uci -q get firewall.@defaults[0].flow_offloading 2>/dev/null)" = "1" ]; then
+		fo="$([ "$(uci -q get firewall.@defaults[0].flow_offloading_hw 2>/dev/null)" = "1" ] && echo hw || echo sw)"
+	fi
+	echo "offload=${fo:-off}"
+
+	# 模块可用性
+	if [ -d /sys/module/nft_fullcone ] || \
+	   lsmod 2>/dev/null | grep -q nft_fullcone; then
+		echo "module=loaded"
+	else
+		echo "module=missing"
+	fi
+}
+
+case "$1" in
+	apply)  do_apply ;;
+	status) do_status ;;
+	*)      echo "用法: natmode-apply [apply|status]"; exit 1 ;;
+esac
+
+exit 0

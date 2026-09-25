@@ -1,0 +1,10 @@
+config natmode 'main'
+	# NAT 模式：
+	#   fullcone   = 全锥形 NAT (NAT1)  —— 端点无关映射 + 端点无关过滤
+	#                P2P / 主机游戏 / PT / PCDN 最优
+	#   restricted = 受限型 NAT (NAT3)  —— netfilter 默认行为
+	#                （Linux 的 masquerade 是「端点无关映射 + 地址端口相关过滤」，
+	#                  即端口受限锥形；标准 netfilter 做不出精确的 NAT2 地址受限锥形）
+	#   symmetric  = 全对称型 NAT (NAT4) —— 端口完全随机，映射不可预测
+	#                最严格，打洞基本不可用，仅用于特殊合规/隐匿场景
+	option mode 'fullcone'

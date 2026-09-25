@@ -1,0 +1,18 @@
+{
+	"luci-app-natmode": {
+		"description": "Grant access to NAT mode selector",
+		"read": {
+			"uci": [ "natmode", "firewall" ],
+			"file": {
+				"/usr/sbin/natmode-apply": [ "exec" ],
+				"/usr/bin/stun-client": [ "exec" ]
+			}
+		},
+		"write": {
+			"uci": [ "natmode", "firewall" ],
+			"file": {
+				"/usr/sbin/natmode-apply": [ "exec" ]
+			}
+		}
+	}
+}

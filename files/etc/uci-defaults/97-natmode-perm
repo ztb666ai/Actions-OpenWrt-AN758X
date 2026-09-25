@@ -1,0 +1,19 @@
+#!/bin/sh
+# 补 /usr/sbin/natmode-apply 与 /etc/init.d/natmode 的可执行权限
+#
+# 与 98-tempinfo-perm 同理：
+#   luci.mk 用 $(CP)（cp -fpR）复制 root/ 目录，保留源文件权限。
+#   若源码在 git checkout / zip 传输时丢了 exec bit，包内脚本就没有 +x，
+#   会导致 rpcd 无法 exec、init.d 无法启动，页面报权限错误。
+#
+# uci-defaults 由 /etc/init.d/boot 以 source 方式执行（. "$i"），
+# 本身不需要可执行权限；返回 0 后本脚本会被自动删除。
+
+for f in /usr/sbin/natmode-apply /etc/init.d/natmode; do
+	if [ -f "$f" ] && [ ! -x "$f" ]; then
+		chmod +x "$f"
+		logger -t natmode-perm "已补 $f 可执行权限"
+	fi
+done
+
+exit 0

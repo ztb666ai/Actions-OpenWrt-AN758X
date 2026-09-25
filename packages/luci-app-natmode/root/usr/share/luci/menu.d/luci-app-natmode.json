@@ -1,0 +1,16 @@
+{
+	"admin/network/natmode": {
+		"title": "NAT 类型",
+		"order": 45,
+		"action": {
+			"type": "view",
+			"path": "natmode/mode"
+		},
+		"depends": {
+			"acl": [ "luci-app-natmode" ],
+			"fs": {
+				"/usr/sbin/natmode-apply": "executable"
+			}
+		}
+	}
+}

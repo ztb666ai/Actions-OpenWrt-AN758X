@@ -20,7 +20,11 @@ env:
   # 由 upload_release 输入控制，手动运行时默认 true
   UPLOAD_RELEASE: ${{ github.event.inputs.upload_release || 'true' }}
   USE_DL_CACHE: true                   # 缓存 dl 下载目录
-  USE_CCACHE: true                     # 开启 ccache 并缓存
+  # ccache 默认关闭：ccache 二进制由 tools/ccache 安装，而 tools 只在
+  # CONFIG_CCACHE 生效时才编入；工具链缓存命中时会跳过 make tools/install，
+  # 导致 ccache 缺失 → 编译报 "ccache: not found" (Error 127)。
+  # 置 true 后流程会自动补装 tools/ccache 并做好失败兜底。
+  USE_CCACHE: false                    # 开启 ccache 并缓存
   TZ: Asia/Shanghai
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -115,9 +119,16 @@ jobs:
     # 0. 解析机型 -> 自动校正 SoC，导出 device name
     # =========================================================
     - name: Resolve device profile
+      id: resolve
       run: |
         PROFILE="${PROFILE}"
         SOC="${SOC}"
+
+        # 缓存版本号：按「年+周」滚动（如 202639）。
+        # 用途：dl / ccache 的 key 用它替代 run_id、run_number。
+        # 若用 run_* ，每次运行都会 save 一份新副本，10GB 配额很快被
+        # 刷满并淘汰掉真正有用的旧缓存；改用周号后同一周内复用同一条目。
+        echo "week=$(date +%Y%W)" >> "$GITHUB_OUTPUT"
 
         if [ "$PROFILE" != "all" ]; then
           case "$PROFILE" in
@@ -207,8 +218,10 @@ jobs:
       continue-on-error: true
       with:
         path: /workdir/openwrt/dl
-        # 按分支 + 周数：同一周内复用，避免每次 run_id 都新建缓存条目
-        key: ponwrt-dl-${{ github.event.inputs.branch || 'master' }}-${{ github.run_number }}
+        # 按分支 + 周号：同一周内复用同一条目。
+        # 原先用 github.run_number → 每次运行都 save 一份新副本，
+        # 10GB 配额会被迅速刷满并淘汰掉有用的旧缓存。
+        key: ponwrt-dl-${{ github.event.inputs.branch || 'master' }}-${{ steps.resolve.outputs.week }}
         restore-keys: |
           ponwrt-dl-${{ github.event.inputs.branch || 'master' }}-
         # 关键：即使后面编译失败也要保住已下载的源码包
@@ -242,6 +255,10 @@ jobs:
       run: |
         cd "$BUILD_ROOT/openwrt"
         [ -e "$GITHUB_WORKSPACE/files" ] && cp -r "$GITHUB_WORKSPACE/files" files
+
+        # git 可能在 checkout 时丢掉 exec bit，rpcd 就执行不了 tempinfo
+        [ -d files/sbin ] && chmod +x files/sbin/* 2>/dev/null
+        [ -d files/etc/uci-defaults ] && chmod +x files/etc/uci-defaults/* 2>/dev/null
 
         # =========================================================
         # 关键：先用源码自带的 configs/<soc>.config 基座打底
@@ -326,6 +343,37 @@ jobs:
           exit 1
         fi
         echo "✅ PON 关键包校验通过"
+
+        # =========================================================
+        # 状态插件校验：第三方包若在 package/custom 里缺失，
+        # defconfig 会把 .config 里的 =y 当无效符号静默删除，
+        # 编完发现界面里没这个菜单时才察觉就晚了
+        # =========================================================
+        OPT_MISS=""
+        for p in luci-app-airoha-npu luci-app-pon-status luci-app-natmode; do
+          if ! grep -q "^CONFIG_PACKAGE_${p}=y" .config; then
+            OPT_MISS="$OPT_MISS $p"
+            echo "::warning::${p} 在 defconfig 后未启用"
+            echo "  --- 诊断 ---"
+            echo "  1) 包目录: $([ -d "package/custom/${p}" ] && echo '存在' || echo '不存在')"
+            echo "  2) feeds 链接: $([ -e "package/feeds/custom/${p}" ] && echo '存在' || echo '不存在')"
+            echo "  3) .packageinfo 记录: $(grep -c "Package: ${p}\$" tmp/.packageinfo 2>/dev/null || echo 0)"
+            echo "  4) feeds.conf 中 custom: $(grep -cE '^src-link[[:space:]]+custom' feeds.conf.default 2>/dev/null || echo 0)"
+            # 直接查询 buildroot 是否认识这个包
+            echo "  5) 包符号探测:"
+            grep -A3 "^Package: ${p}\$" tmp/.packageinfo 2>/dev/null | head -6 || echo "     (无记录)"
+          fi
+        done
+        if [ -n "$OPT_MISS" ]; then
+          echo "::error::状态插件缺失:$OPT_MISS 请检查 diy-part1.sh 的 clone / 拷贝是否成功"
+          exit 1
+        fi
+        echo "✅ 状态插件校验通过"
+
+        # 中文包（po 注入后才存在，缺失只警告不阻断）
+        if ! grep -q "^CONFIG_PACKAGE_luci-i18n-airoha-npu-zh-cn=y" .config; then
+          echo "::warning::luci-i18n-airoha-npu-zh-cn 未启用（po/zh_Hans 未注入？界面将为英文）"
+        fi
 
         # 机型校验: 机型名写错时直接失败，避免静默全编译
         if [ "${PROFILE}" != "all" ]; then
@@ -473,6 +521,52 @@ jobs:
         sed -i 's/ $(tool.*\/stamp-compile)//' Makefile
 
     # =========================================================
+    # 12.5 ccache 补装（仅 USE_CCACHE=true 时执行）
+    #
+    #   ccache 二进制由 tools/ccache 安装到 staging_dir/host/bin。
+    #   tools/Makefile：
+    #     ifneq ($(CONFIG_CCACHE)$(CONFIG_SDK),)
+    #       tools-y += ccache xxhash
+    #   即只有 CONFIG_CCACHE 生效时才会编入。
+    #
+    #   问题场景：工具链缓存命中 → 上面跳过 make tools/install →
+    #   ccache 不在缓存里（缓存是未开 ccache 时建的）→
+    #   rules.mk 的 TARGET_CC:= ccache $(TARGET_CC) 找不到二进制：
+    #     /bin/sh: 1: .../staging_dir/host/bin/ccache: not found (Error 127)
+    #
+    #   故这里单独补装 tools/ccache，并在失败时自动关闭 ccache 继续编译，
+    #   绝不因 ccache 让整次构建失败。
+    # =========================================================
+    - name: Setup ccache (opt-in)
+      if: env.USE_CCACHE == 'true'
+      run: |
+        cd "$BUILD_ROOT/openwrt"
+
+        # 1) 确保 .config 里有 CONFIG_CCACHE=y（rules.mk 据此启用 ccache）
+        sed -i '/^CONFIG_CCACHE=/d; /^# CONFIG_CCACHE is not set/d' .config
+        echo 'CONFIG_CCACHE=y' >> .config
+        make defconfig >/dev/null 2>&1
+
+        # 2) 缺二进制就补装（ccache 依赖 xxhash → cmake，首次会多花几分钟）
+        if [ ! -x staging_dir/host/bin/ccache ]; then
+          echo "ccache 缺失，补装 tools/ccache ..."
+          if ! make tools/ccache/install -j"$(nproc)"; then
+            echo "::warning::tools/ccache 安装失败，自动关闭 ccache 继续编译"
+            sed -i 's/^CONFIG_CCACHE=y/# CONFIG_CCACHE is not set/' .config
+          fi
+        fi
+
+        # 3) 最终确认：仍然不可用就彻底关掉，避免 Error 127
+        if ! grep -q '^CONFIG_CCACHE=y' .config; then
+          echo "ccache: 已关闭"
+        elif [ -x staging_dir/host/bin/ccache ]; then
+          echo "ccache: 已启用 ($(staging_dir/host/bin/ccache --version | head -1))"
+        else
+          echo "::warning::ccache 二进制仍缺失，强制关闭"
+          sed -i 's/^CONFIG_CCACHE=y/# CONFIG_CCACHE is not set/' .config
+        fi
+
+    # =========================================================
     # 13. 保存工具链到 actions/cache
     # =========================================================
     - name: Save toolchain to actions/cache
@@ -522,7 +616,7 @@ jobs:
       continue-on-error: true
       with:
         path: ${{ env.BUILD_ROOT }}/openwrt/.ccache
-        key: ponwrt-ccache-${{ env.SOC }}-${{ github.run_id }}
+        key: ponwrt-ccache-${{ env.SOC }}-${{ steps.resolve.outputs.week }}
         restore-keys: |
           ponwrt-ccache-${{ env.SOC }}-
 
@@ -593,7 +687,10 @@ jobs:
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
       with:
         name: OpenWrt_bin_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        path: openwrt/bin
+        # 必须用绝对路径：openwrt/bin 是 $GITHUB_WORKSPACE 下的符号链接
+        # （Clone source code 步骤 ln -sf 建的），upload-artifact 遍历
+        # 符号链接目录不可靠，可能传一个空包。
+        path: ${{ env.BUILD_ROOT }}/openwrt/bin
 
     # =========================================================
     # 21. 整理并上传固件
@@ -683,10 +780,13 @@ jobs:
     # 23. 清理旧记录
     # =========================================================
     - name: Delete workflow runs
+      # 仅清理「已上传成功」的运行；失败的运行保留日志便于排错。
+      # 原先无条件 retain_days:1，会把失败日志也删掉。
+      if: steps.compile.outputs.status == 'success'
       uses: Mattraks/delete-workflow-runs@v2
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        retain_days: 1
+        retain_days: 7
         keep_minimum_runs: 10
 
     - name: Remove old releases

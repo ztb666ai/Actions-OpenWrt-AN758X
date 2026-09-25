@@ -1,0 +1,27 @@
+#!/bin/sh
+# 修复 /sbin/tempinfo 的可执行权限
+#
+# 背景：
+#   luci-base 的 rpcd ucode 插件用 access()（F_OK，只验证文件存在）
+#   判断要不要调用 /sbin/tempinfo。文件存在但缺 +x 时：
+#     - access() 通过 → 走 popen()
+#     - popen() 因 Permission denied 失败 → stdout 空
+#     - 插件把空输出替换成 '?' → 概览页「温度」显示 "?"
+#   （文件若真的不存在，插件直接 return {}，温度行压根不显示）
+#
+# 本文件经 files/ 进 rootfs，通过 git / zip 传输时 tempinfo 的 exec bit
+# 可能丢失，这里在首次开机时补回来。
+#
+# uci-defaults 由 /etc/init.d/boot 以 source 方式执行（. "$i"），
+# 本身不需要可执行权限；返回 0 后该脚本会被自动删除。
+
+if [ -f /sbin/tempinfo ]; then
+	if [ ! -x /sbin/tempinfo ]; then
+		chmod +x /sbin/tempinfo
+		logger -t tempinfo-perm "已补 /sbin/tempinfo 可执行权限"
+	fi
+else
+	logger -t tempinfo-perm "警告：/sbin/tempinfo 不存在，概览页无温度行"
+fi
+
+exit 0
