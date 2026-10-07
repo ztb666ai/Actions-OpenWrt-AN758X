@@ -1,0 +1,62 @@
+# ==========================================================================
+# @PKG_NAME@
+#
+#   Airoha NPU (RISC-V) 固件 —— 可选插件包
+#   由 scripts/gen-npu-fw-package.sh 在 CI 里现场生成，不要手改、不要入库。
+#   SoC=@SOC@   WiFi=@WIFI@   ClankerNPU=@GITREV@
+#
+#   目录名必须等于包名（buildroot 约定：PKG_NAME ?= $(notdir ${CURDIR})），
+#   拷进 package/custom 时不要改名，否则 .config 里的 CONFIG_PACKAGE_xxx
+#   符号对不上，会被 defconfig 静默剔除。
+# ==========================================================================
+include $(TOPDIR)/rules.mk
+
+PKG_NAME:=@PKG_NAME@
+PKG_VERSION:=@PKG_VERSION@
+PKG_RELEASE:=1
+
+PKG_MAINTAINER:=qwe3017
+
+# 固件文件名前缀 —— 决定 /lib/firmware/airoha 下两个 bin 叫什么。
+# host 驱动 drivers/net/ethernet/airoha/airoha_npu.c 按前缀找镜像：
+#   AN7581 -> en7581（注意是 EN 不是 AN）   AN7583 -> an7583
+# 用驱动默认前缀时无需改 DTS；自定义前缀由 apply-npu-dts.sh 写 firmware-name。
+NPU_FW_PREFIX:=@FW_PREFIX@
+
+include $(INCLUDE_DIR)/package.mk
+
+define Package/@PKG_NAME@
+  SECTION:=firmware
+  CATEGORY:=Firmware
+  TITLE:=@TITLE@
+  DEPENDS:=@TARGET_airoha
+  URL:=https://github.com/ClankerConstruction/ClankerNPU
+endef
+
+define Package/@PKG_NAME@/description
+  Airoha @SOC@ NPU (RISC-V) firmware built for the @WIFI@ WiFi datapath,
+  cross-built from ClankerConstruction/ClankerNPU @ @GITREV@.
+  Installs /lib/firmware/airoha/$(NPU_FW_PREFIX)_npu_rv32.bin and
+  /lib/firmware/airoha/$(NPU_FW_PREFIX)_npu_data.bin - exactly the two file
+  names the airoha_npu host driver requests.
+endef
+
+# 与 linux-firmware 官方固件装的是同一批文件名，运行时必须互斥
+define Package/@PKG_NAME@/conflicts
+@CONFLICTS@
+endef
+
+# 纯二进制包：没有源码要解，也没有东西要编（bin 由 CI 现编后放进 src/）
+define Build/Prepare
+endef
+
+define Build/Compile
+endef
+
+define Package/@PKG_NAME@/install
+	$(INSTALL_DIR) $(1)/lib/firmware/airoha
+	$(CP) $(CURDIR)/src/$(NPU_FW_PREFIX)_npu_rv32.bin $(1)/lib/firmware/airoha/
+	$(CP) $(CURDIR)/src/$(NPU_FW_PREFIX)_npu_data.bin $(1)/lib/firmware/airoha/
+endef
+
+$(eval $(call BuildPackage,@PKG_NAME@))

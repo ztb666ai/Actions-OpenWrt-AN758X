@@ -31,29 +31,9 @@ ADD_TAILSCALE=false    # luci-app-tailscale
 ADD_OPENLIST=false     # luci-app-openlist2（alist/openlist 挂载）
 ADD_SMARTDNS=false     # luci-app-smartdns
 
-# ---------------------------------------------------------
-# 本地包：CI 仓库自带的包（不在任何 feed 里），拷进 package/custom
-# 当前两个：
-#   luci-app-pon-status —— PON 光模块卡片，概览页「系统」下一格
-#                          （文件名 15_pon.js 决定位置）
-#   luci-app-natmode    —— NAT 类型三选一，菜单「网络 → NAT 类型」
-# ---------------------------------------------------------
-LOCAL_PKG_DIR="${GITHUB_WORKSPACE}/packages"
-if [ -d "$LOCAL_PKG_DIR" ]; then
-  for p in "$LOCAL_PKG_DIR"/*; do
-    [ -d "$p" ] || continue
-    # 目录名必须等于包名（luci.mk: PKG_NAME ?= $(notdir ${CURDIR})）
-    rm -rf "$PKG_DIR/$(basename "$p")"
-    cp -r "$p" "$PKG_DIR/"
-    echo "✅ 本地包: $(basename "$p")"
-  done
-
-  # git checkout / zip 传输可能丢掉 exec bit，导致 rpcd 无法 exec、
-  # init.d 无法启动。这里统一补回来（另有 uci-defaults 开机兜底）。
-  find "$PKG_DIR" -type f \
-    \( -path "*/usr/sbin/*" -o -path "*/etc/init.d/*" -o -path "*/usr/libexec/*" \) \
-    -exec chmod +x {} \; 2>/dev/null
-fi
+ADD_LUCI_APP=true       # qwe3017/luci-app 仓库（monorepo）
+                        #   ├─ luci-app-natmode     NAT 类型三选一（网络 → NAT 类型）
+                        #   └─ luci-app-pon-status  PON 光模块卡片（概览页「系统」下一格）
 
 clone() {  # clone <url> <dir> [branch]
   local url="$1" dir="$2" br="$3"
@@ -71,6 +51,47 @@ clone() {  # clone <url> <dir> [branch]
   echo "::error::克隆失败: $url"
   return 1
 }
+
+# =========================================================
+# qwe3017/luci-app —— 两个 LuCI 插件的来源
+#
+# 这是一个 monorepo，结构为：
+#   luci-app/
+#   ├── luci-app-natmode/
+#   └── luci-app-pon-status/
+#
+# 所以需要 clone 整个仓库，再把子目录拷到 package/custom/。
+# 目录名必须等于包名（luci.mk: PKG_NAME ?= $(notdir ${CURDIR})），
+# 否则 config 里的 CONFIG_PACKAGE_xxx 符号对不上。
+#
+# ⚠️ 为什么不再用 CI 仓库自带的 packages/ 本地包：
+#    上游 natmode 0.1.2 修了一个关键问题 ——
+#    「LuCI 保存时 rpcd 暂存值 CLI 读不到」，导致点了保存但模式没应用
+#    （commit: fix(natmode): apply button missing on PonWrt LuCI fork）。
+#    修法是 apply 支持显式传参：apply <mode> [<fullcone6>] [<auto_offload>]
+#    本地旧版是从 UCI 读值，在保存流程中会读到旧值。
+# =========================================================
+if [ "$ADD_LUCI_APP" = "true" ]; then
+  LUCI_APP_URL="https://github.com/qwe3017/luci-app"
+  LUCI_APP_TMP="$(mktemp -d)/luci-app"
+
+  if ! clone "$LUCI_APP_URL" "$LUCI_APP_TMP" main; then
+    echo "::error::qwe3017/luci-app 拉取失败，natmode / pon-status 会被 defconfig 剔除"
+    exit 1
+  fi
+
+  for p in luci-app-natmode luci-app-pon-status; do
+    if [ ! -f "$LUCI_APP_TMP/$p/Makefile" ]; then
+      echo "::error::$LUCI_APP_TMP/$p/Makefile 不存在，包无法被索引"
+      exit 1
+    fi
+    rm -rf "$PKG_DIR/$p"
+    cp -r "$LUCI_APP_TMP/$p" "$PKG_DIR/"
+    echo "✅ 已拷贝: $p  (版本 $(grep -m1 '^PKG_VERSION' "$PKG_DIR/$p/Makefile" 2>/dev/null | sed 's/PKG_VERSION:=//'))"
+  done
+
+  rm -rf "$LUCI_APP_TMP"
+fi
 
 # --- Airoha SoC 状态页（NPU 卸载 / CPU 频率 / Frame Engine / PPE 流表）---
 # 包名由目录名决定（luci.mk: PKG_NAME ?= $(notdir ${CURDIR})），
@@ -169,6 +190,14 @@ if [ "$ADD_AIROHA_NPU" = "true" ] && [ ! -d "$PKG_DIR/luci-app-airoha-npu" ]; th
   exit 1
 fi
 
+# natmode / pon-status 来自 qwe3017/luci-app（config 里也是 =y）
+for p in luci-app-natmode luci-app-pon-status; do
+  if [ "$ADD_LUCI_APP" = "true" ] && [ ! -d "$PKG_DIR/$p" ]; then
+    echo "::error::$p 未拉到，config 里的 =y 会被 defconfig 剔除"
+    exit 1
+  fi
+done
+
 # ---------------------------------------------------------
 # 清理重复嵌套目录
 # rchen14b/luci-app-airoha-npu 这个仓库有问题：包在根目录放了一份，
@@ -190,70 +219,85 @@ done
 
 # ---------------------------------------------------------
 # 让新包进入索引
+#
+#   ⚠️ 判据是 tmp/.packageinfo，不是 package/feeds/custom
+#
+#   OpenWrt 的 prepare-tmpinfo 直接扫 package/ 目录树：
+#     include/scan.mk:  find -L package -mindepth 1 -maxdepth 5 -name Makefile
+#   package/custom/<pkg>/Makefile 深度只有 3，本来就会被扫到，
+#   **根本不需要注册 feed**。
+#
+#   以前那套 src-link custom feed 有两个问题：
+#     ① feeds/custom 指向 package/custom，而 feeds/base 已经指向 ../package，
+#        同一批 Makefile 被扫两遍，package-metadata.pl 按 Override 挑一个，
+#        行为随扫描顺序漂移；
+#     ② scripts/feeds 的 install_src() 里，$installed{$name} 已经非空
+#        （就是 ① 扫出来的那份），于是直接 return 0，压根不建
+#        package/feeds/custom/<pkg> 符号链接 ——
+#        所以「package/feeds/custom 不存在」是**正常现象**，不是索引失败。
+#        拿它当判据必然误报。
 # ---------------------------------------------------------
 if [ -n "$(ls -A "$PKG_DIR" 2>/dev/null)" ]; then
 
   # =========================================================
-  # 关键：把 package/custom 注册为 feed（src-link）
-  # 否则 buildroot 的 metadata.pl 不会扫描这个目录，
-  # 包符号压根不会生成，defconfig 就会把 .config 里
-  # "CONFIG_PACKAGE_xxx=y" 当作无效符号静默删除 —— 不报错，
-  # 表现为 clone 成功、目录存在，但固件里没有这个包。
+  # 强制重建索引
+  #   只删 tmp/.packageinfo 是不够的：prepare-tmpinfo 有 scan_unchanged
+  #   优化（拿 tmp/info/.scan-*.stamp 比 mtime），stamp 还在且没有更新的
+  #   Makefile 时它会跳过扫描 —— 结果 .packageinfo 被删了却没人重建，
+  #   索引反而空了。所以 stamp 也要一起删。
   # =========================================================
-  if ! grep -qE "^src-link[[:space:]]+custom" feeds.conf.default; then
-    echo "src-link custom $PWD/package/custom" >> feeds.conf.default
-    echo "✅ 已注册 feed: src-link custom $PWD/package/custom"
-  else
-    echo "feed 已注册: $(grep -E '^src-link[[:space:]]+custom' feeds.conf.default)"
-  fi
+  rm -f tmp/.packageinfo tmp/.targetinfo
+  rm -f tmp/info/.scan-packageinfo.stamp tmp/info/.scan-targetinfo.stamp
+  rm -f tmp/.config-package.in tmp/.config-target.in
 
-  # 强制重建包索引，避免沿用旧的 tmp/.packageinfo
-  rm -f tmp/.packageinfo tmp/.targetinfo 2>/dev/null
+  echo ">>> make prepare-tmpinfo（重新扫描 package/ 树）"
+  make -s prepare-tmpinfo OPENWRT_BUILD= 2>&1 | tail -5 || true
 
-  ./scripts/feeds update custom 2>&1 | tail -3
-  ./scripts/feeds install -a >/dev/null 2>&1 || true
-
+  echo "=========================================="
+  echo "包索引校验（判据：tmp/.packageinfo）"
   echo "=========================================="
   echo "package/custom 内容："
-  ls -1 "$PKG_DIR"
-  echo "------------------------------------------"
+  INDEX_MISS=""
   for d in "$PKG_DIR"/*; do
     [ -d "$d" ] || continue
-    echo "  $(basename "$d") : $([ -f "$d/Makefile" ] && echo 'Makefile ✓' || echo 'Makefile ✗ 缺失')"
+    n=$(basename "$d")
+    if [ ! -f "$d/Makefile" ]; then
+      echo "  -  $n（无根 Makefile，视为源仓库/子包容器，跳过）"
+      continue
+    fi
+    # 目录名即包名：buildroot 约定 PKG_NAME ?= $(notdir ${CURDIR})
+    if grep -qx "Package: $n" tmp/.packageinfo 2>/dev/null; then
+      echo "  ✅ $n"
+    else
+      echo "  ❌ $n —— tmp/.packageinfo 里查不到"
+      INDEX_MISS="$INDEX_MISS $n"
+      # 真实错误在这里（scan.mk 落盘路径 logs/<SCAN_DIR>/<相对目录>/dump.txt）
+      for f in "logs/package/$n/dump.txt" "logs/package/custom/$n/dump.txt"; do
+        [ -f "$f" ] && { echo "===== $f ====="; tail -25 "$f"; }
+      done
+    fi
   done
   echo "------------------------------------------"
-  echo "feeds 符号链接 package/feeds/custom/ :"
-  ls -1 package/feeds/custom/ 2>/dev/null || echo "  ⚠ package/feeds/custom 不存在（索引可能失败）"
-  echo "------------------------------------------"
   echo "luci.mk: $([ -f feeds/luci/luci.mk ] && echo '✓' || echo '✗ 缺失（luci app 无法解析）')"
+  echo "tmp/.packageinfo 包总数: $(grep -c '^Package: ' tmp/.packageinfo 2>/dev/null || echo 0)"
   echo "=========================================="
 
-  # =========================================================
-  # 索引失败兜底 + 真实错误输出
-  # feeds 脚本只说"详情见 dump.txt"，那个文件在日志里看不到，
-  # 这里把它打印出来，并尝试回退方案：直接塞进已安装的 luci feed
-  # =========================================================
-  if [ ! -d package/feeds/custom ] || [ -z "$(ls -A package/feeds/custom 2>/dev/null)" ]; then
-    echo "::warning::custom feed 索引未生成，打印真实错误："
-    for f in logs/feeds/custom/*/*/dump.txt logs/feeds/custom/*/dump.txt; do
-      [ -f "$f" ] && { echo "===== $f ====="; tail -25 "$f"; }
-    done 2>/dev/null
-
-    echo ""
-    echo "--- 尝试回退：拷入 feeds/luci/applications ---"
-    if [ -d feeds/luci/applications ]; then
-      for d in "$PKG_DIR"/*; do
-        [ -d "$d" ] || continue
-        n=$(basename "$d")
-        rm -rf "feeds/luci/applications/$n"
-        cp -r "$d" "feeds/luci/applications/$n"
-        echo "  已拷贝: $n"
-      done
-      ./scripts/feeds install -a >/dev/null 2>&1 || true
-      echo "  回退后 package/feeds/luci/ :"
-      ls -1 package/feeds/luci/ 2>/dev/null | grep -E "airoha-npu|pon-status|natmode" || echo "    ⚠ 仍未出现"
-    fi
+  # 必装插件（config 里是 =y 的那几个）必须进索引，否则 defconfig 会静默剔除
+  REQUIRED=""
+  [ "$ADD_AIROHA_NPU" = "true" ] && REQUIRED="$REQUIRED luci-app-airoha-npu"
+  if [ "$ADD_LUCI_APP" = "true" ]; then
+    REQUIRED="$REQUIRED luci-app-natmode luci-app-pon-status"
   fi
+  HARD_MISS=""
+  for r in $REQUIRED; do
+    grep -qx "Package: $r" tmp/.packageinfo 2>/dev/null || HARD_MISS="$HARD_MISS $r"
+  done
+  if [ -n "$HARD_MISS" ]; then
+    echo "::error::以下必装插件未进入 tmp/.packageinfo，defconfig 会把 .config 里的 =y 静默剔除:$HARD_MISS"
+    echo "  已索引缺失清单:$INDEX_MISS"
+    exit 1
+  fi
+  [ -n "$INDEX_MISS" ] && echo "::warning::部分可选包未进入索引（不影响必装插件）:$INDEX_MISS"
 else
   echo "未启用任何第三方插件"
 fi
