@@ -415,6 +415,7 @@ jobs:
           sed -i '/^CONFIG_LUCI_LANG_zh_Hans=/d' .config
           sed -i '/^# CONFIG_LUCI_LANG_zh_Hans is not set$/d' .config
           echo "# CONFIG_LUCI_LANG_zh_Hans is not set" >> .config   # 注意 # 后面的空格！
+          echo "CONFIG_PACKAGE_luci-i18n-base-zh_Hans=y" >> .config 
           echo "--- 清理后 zh-cn 相关配置 ---"
           grep -nE 'LUCI_LANG_zh|luci-i18n-.*zh-cn' .config || echo "(无)"
      
