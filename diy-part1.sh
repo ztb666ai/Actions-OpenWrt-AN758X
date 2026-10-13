@@ -122,14 +122,6 @@ if [ "$ADD_PASSWALL" = "true" ]; then
   rm -rf "$PKG_DIR/openwrt-passwall/luci-app-passwall2" 2>/dev/null
 fi
 
-# --- openclash ---
-if [ "$ADD_OPENCLASH" = "true" ]; then
-  echo "::warning::OpenClash 会触发 Ruby/Rust 编译，耗时极长"
-  clone https://github.com/vernesong/OpenClash "$PKG_DIR/OpenClash" master
-  mv "$PKG_DIR/OpenClash/luci-app-openclash" "$PKG_DIR/luci-app-openclash" 2>/dev/null
-  rm -rf "$PKG_DIR/OpenClash"
-fi
-
 # --- mosdns ---
 if [ "$ADD_MOSDNS" = "true" ]; then
   clone https://github.com/sbwml/luci-app-mosdns "$PKG_DIR/luci-app-mosdns" v5
