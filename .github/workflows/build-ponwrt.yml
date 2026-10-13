@@ -13,6 +13,7 @@ env:
   FEEDS_CONF: ''
   DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
+  DIY_P3_SH: diy-part3.sh
   UPLOAD_BIN_DIR: false
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: ${{ github.event.inputs.upload_release || 'true' }}
@@ -347,80 +348,9 @@ jobs:
           WIFI_5G_COUNTRY="$WIFI_5G_COUNTRY" WIFI_5G_CHANNEL="$WIFI_5G_CHANNEL" \
           WIFI_5G_HTMODE="$WIFI_5G_HTMODE" WIFI_5G_FALLBACK="$WIFI_5G_FALLBACK" \
             "$GITHUB_WORKSPACE/$DIY_P2_SH"
-
+       
       # =========================================================
-      # 8.5 从固件中去掉不想编译的包（zh-cn 语言包）
-      # 目标：保留 luci-i18n-base-zh-cn 基础包，去掉各 app 的语言包
-      #
-      # 原理（luci.mk）：
-      #   所有 luci-i18n-<module>-zh-cn（含 base）都是 HIDDEN 包，
-      #   DEFAULT:=LUCI_LANG_zh_Hans —— 语言总开关必须保持 =y，
-      #   否则 base 也会被 defconfig 剔除（隐藏包无法手动补选）。
-      #   开关 =y 会让所有 app 的 zh-cn 默认 =y，因此要把
-      #   「除 base 外」的所有 zh-cn 包显式写成 is not set。
-      # ⚠ 仍必须放在步骤 9 的 make defconfig 之前（唯一一次 defconfig）
-      # =========================================================
-      #- name: Remove unwanted packages (zh-cn i18n, keep base)
-      #  run: |
-      #    cd "$BUILD_ROOT/openwrt"
-      #    echo "--- 清理前 zh-cn 相关配置 ---"
-      #    grep -nE 'LUCI_LANG_zh|luci-i18n-.*zh-cn' .config || echo "(无)"
-
-          # ① 保留中文语言总开关（base 语言包依赖它，不能置 n！）
-        #  sed -i '/^# CONFIG_LUCI_LANG_zh_Hans is not set$/d' .config
-        #  grep -q '^CONFIG_LUCI_LANG_zh_Hans=y' .config || \
-        #      echo 'CONFIG_LUCI_LANG_zh_Hans=y' >> .config
-           # ② 通配清掉所有 zh-cn 语言包配置行（三种前缀，含 base，
-           #    后面再把 base 显式勾回来，与 7.5 步「先清零再回写」同款手法）
-        #  sed -i -E \
-        #    -e '/^CONFIG_PACKAGE_luci-i18n-.*-zh-cn=/d' \
-        #    -e '/^# CONFIG_PACKAGE_luci-i18n-.*-zh-cn is not set$/d' \
-        #    -e '/^CONFIG_DEFAULT_luci-i18n-.*-zh-cn=/d' \
-        #    -e '/^# CONFIG_DEFAULT_luci-i18n-.*-zh-cn is not set$/d' \
-        #    -e '/^CONFIG_MODULE_DEFAULT_luci-i18n-.*-zh-cn=/d' \
-        #    -e '/^# CONFIG_MODULE_DEFAULT_luci-i18n-.*-zh-cn is not set$/d' \
-        #    .config
-
-          # ③ 写回 base 基础语言包 =y（后写覆盖先写）
-        #  echo 'CONFIG_PACKAGE_luci-i18n-base-zh-cn=y' >> .config
-          # ④ 兜底：扫描 packageinfo，把「除 base 外」的所有 zh-cn 包
-          #    显式置 n —— 否则 LUCI_LANG_zh_Hans=y 会把它们全部拉回 =y。
-          #    （feeds install 后 tmp/.packageinfo 已生成，这里能枚举出
-          #    全部真实存在的 zh-cn 包，比你手写 8 个列表更全、不易漏。）
-        #  if [ -f tmp/.packageinfo ]; then
-        #    grep -oE '^Package: luci-i18n-[A-Za-z0-9_-]+-zh-cn$' tmp/.packageinfo | awk '{print $2}' | sort -u \
-        #    | while read -r p; do
-        #        [ "$p" = "luci-i18n-base-zh-cn" ] && continue
-        #        echo "# CONFIG_PACKAGE_${p} is not set" >> .config
-        #        echo "# CONFIG_DEFAULT_${p} is not set" >> .config
-        #        echo "# CONFIG_MODULE_DEFAULT_${p} is not set" >> .config
-        #      done
-        #  fi
-
-          # ⑤ 手写列表兜底（防止 tmp/.packageinfo 不存在/枚举失败时漏网）
-        #  for p in luci-i18n-acme-zh-cn \
-        #           luci-i18n-airoha-npu-zh-cn \
-        #           luci-i18n-ddns-go-zh-cn \
-        #           luci-i18n-firewall-zh-cn \
-        #           luci-i18n-iptv-zh-cn \
-        #           luci-i18n-package-manager-zh-cn \
-        #           luci-i18n-pon-zh-cn \
-        #           luci-i18n-uhttpd-zh-cn
-        #  do
-        #    echo "# CONFIG_PACKAGE_${p} is not set" >> .config
-        #    echo "# CONFIG_DEFAULT_${p} is not set" >> .config
-        #    echo "# CONFIG_MODULE_DEFAULT_${p} is not set" >> .config
-        #  done
-
-          #sed -i '/^CONFIG_LUCI_LANG_zh_Hans=/d' .config
-          #sed -i '/^# CONFIG_LUCI_LANG_zh_Hans is not set$/d' .config
-          #echo "# CONFIG_LUCI_LANG_zh_Hans is not set" >> .config   # 注意 # 后面的空格！
-          #echo "CONFIG_PACKAGE_luci-i18n-base-zh_Hans=y" >> .config 
-          #echo "--- 清理后 zh-cn 相关配置 ---"
-          #grep -nE 'LUCI_LANG_zh|luci-i18n-.*zh-cn' .config || echo "(无)"
-     
-      # =========================================================
-      # 8.6 从固件中去掉不想编译的包（示例：zh-cn 中文翻译包）
+      # 8.5 从固件中去掉不想编译的包（示例：zh-cn 中文翻译包）
       # ⚠ 必须放在步骤 9 的 make defconfig 之前（全流程唯一一次 defconfig）
       # =========================================================          
       #- name: Remove unwanted packages (generic)
@@ -671,6 +601,9 @@ jobs:
           sed -i '/^CONFIG_CCACHE=/d; /^# CONFIG_CCACHE is not set/d' .config
           echo 'CONFIG_CCACHE=y' >> .config
           make defconfig >/dev/null 2>&1 || true
+          # 定制中文翻译包
+          chmod +x "$GITHUB_WORKSPACE/$DIY_P3_SH"
+          "$GITHUB_WORKSPACE/$DIY_P3_SH"
 
           # 2) 缺二进制就补装（ccache 依赖 xxhash → cmake，首次会多花几分钟）
           if [ ! -x staging_dir/host/bin/ccache ]; then
