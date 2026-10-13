@@ -412,6 +412,9 @@ jobs:
             echo "# CONFIG_MODULE_DEFAULT_${p} is not set" >> .config
           done
 
+          sed -i '/^CONFIG_LUCI_LANG_zh_Hans=/d' .config
+          sed -i '/^# CONFIG_LUCI_LANG_zh_Hans is not set$/d' .config
+          echo "# CONFIG_LUCI_LANG_zh_Hans is not set" >> .config   # 注意 # 后面的空格！
           echo "--- 清理后 zh-cn 相关配置 ---"
           grep -nE 'LUCI_LANG_zh|luci-i18n-.*zh-cn' .config || echo "(无)"
      
@@ -488,9 +491,9 @@ jobs:
           echo "✅ 状态插件校验通过"
 
           # 中文包（po 注入后才存在，缺失只警告不阻断）
-          if ! grep -q "^CONFIG_PACKAGE_luci-i18n-airoha-npu-zh-cn=y" .config; then
-            echo "::warning::luci-i18n-airoha-npu-zh-cn 未启用（po/zh_Hans 未注入？界面将为英文）"
-          fi
+          #if ! grep -q "^CONFIG_PACKAGE_luci-i18n-airoha-npu-zh-cn=y" .config; then
+          #  echo "::warning::luci-i18n-airoha-npu-zh-cn 未启用（po/zh_Hans 未注入？界面将为英文）"
+          #fi
 
           # 机型校验: 机型名写错时直接失败，避免静默全编译
           if [ "${PROFILE}" != "all" ]; then
