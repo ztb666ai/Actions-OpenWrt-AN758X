@@ -8,7 +8,7 @@ env:
   BUILD_ROOT: /workdir
   SOURCE: ${{ github.event.inputs.source || 'fork' }}
   # 唯一真相源：固件版本后缀的作者名（LuCI 概览页「固件版本」）
-  FW_AUTHOR: 'qwe'
+  FW_AUTHOR: 'ztb'
   REPO_URL: ${{ github.event.inputs.source == 'pbs05/ponwrt' && 'https://github.com/pbs05/ponwrt' || 'https://github.com/qwe3017/ponwrt' }}
   FEEDS_CONF: ''
   DIY_P1_SH: diy-part1.sh
@@ -47,7 +47,7 @@ on:
       soc:
         description: 'SoC 平台'
         required: true
-        default: 'an7581'
+        default: 'an7583'
         type: choice
         options:
           - an7581
@@ -55,7 +55,7 @@ on:
       profile:
         description: '机型 profile (all=全机型编译)'
         required: true
-        default: 'fiberhome_hg5585f-ct'
+        default: 'nokia_xg-040g-mf-ubi'
         type: choice
         options:
           - fiberhome_hg5585f-cu
@@ -91,7 +91,7 @@ on:
       fw_author:
         description: '覆盖固件版本后缀的作者名（LuCI 概览页「固件版本」）。留空 = qwe'
         required: false
-        default: 'qwe'
+        default: 'ztb'
       upload_release:
         description: '固件发布到 Release（false 则只传 Artifact）'
         required: false
@@ -380,7 +380,7 @@ jobs:
           # 编完发现界面里没这个菜单时才察觉就晚了
           # =========================================================
           OPT_MISS=""
-          for p in luci-app-airoha-npu luci-app-pon-status luci-app-natmode; do
+          for p in luci-app-airoha-npu; do
             if ! grep -q "^CONFIG_PACKAGE_${p}=y" .config; then
               OPT_MISS="$OPT_MISS $p"
               echo "::warning::${p} 在 defconfig 后未启用"
