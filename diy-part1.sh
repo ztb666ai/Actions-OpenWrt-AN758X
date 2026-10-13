@@ -24,7 +24,7 @@ mkdir -p "$PKG_DIR"
 ADD_AIROHA_NPU=true    # luci-app-airoha-npu：Airoha SoC 状态页（NPU/CPU/Frame Engine/PPE）
 
 ADD_PASSWALL=false     # luci-app-passwall（含依赖源）
-ADD_OPENCLASH=false    # luci-app-openclash ⚠ 依赖 Ruby/Rust，编译极慢
+ADD_OPENCLASH=true    # luci-app-openclash ⚠ 依赖 Ruby/Rust，编译极慢
 ADD_MOSDNS=false       # luci-app-mosdns + v2ray-geodata
 ADD_LUCKY=false        # luci-app-lucky（DDNS + socat）
 ADD_TAILSCALE=false    # luci-app-tailscale
@@ -113,30 +113,6 @@ if [ "$ADD_AIROHA_NPU" = "true" ]; then
     exit 1
   fi
   echo "   版本: $(grep -m1 '^PKG_VERSION' "$PKG_DIR/luci-app-airoha-npu/Makefile" 2>/dev/null)"
-
-  # =========================================================
-  # 关键：po 文件名必须改成 airoha-npu.po
-  #
-  # luci.mk 的 i18n install 规则：
-  #   po2lmo $(po) → $(LUCI_LIBRARYDIR)/i18n/$(basename $(notdir $(po))).$(lang).lmo
-  # 即 lmo 名取自 po 文件主名。而运行时按
-  #   LUCI_BASENAME = $(patsubst luci-app-%,%,luci-app-airoha-npu) = airoha-npu
-  # 查找 lmo。上游两份 po 都叫 luci-app-airoha-npu.po，
-  # 会生成 luci-app-airoha-npu.zh-cn.lmo，前端找不到 → 中文不生效。
-  # 官方 app 都是 basename 命名（firewall.po / package-manager.po / pon.po）。
-  # =========================================================
-  PODIR="$PKG_DIR/luci-app-airoha-npu/po"
-  if [ -f "$PODIR/zh_Hans/luci-app-airoha-npu.po" ]; then
-    # 确保 Language 头是 zh_Hans（上游头部缺该字段时 po2lmo 可能识别异常）
-    grep -q '^"Language:' "$PODIR/zh_Hans/luci-app-airoha-npu.po" || \
-      sed -i 's/^msgstr ""$/msgstr ""\n"Language: zh_Hans\\n"/' "$PODIR/zh_Hans/luci-app-airoha-npu.po"
-    mv "$PODIR/zh_Hans/luci-app-airoha-npu.po" "$PODIR/zh_Hans/airoha-npu.po"
-    echo "✅ po 改名: luci-app-airoha-npu.po -> airoha-npu.po（luci.mk 按 LUCI_BASENAME 查找）"
-  fi
-  if [ -f "$PODIR/es/luci-app-airoha-npu.po" ]; then
-    mv "$PODIR/es/luci-app-airoha-npu.po" "$PODIR/es/airoha-npu.po"
-  fi
-  echo "   po/zh_Hans: $(ls -1 "$PODIR/zh_Hans/" 2>/dev/null | tr '\n' ' ')"
 fi
 
 # --- passwall ---
