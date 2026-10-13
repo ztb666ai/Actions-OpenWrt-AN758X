@@ -355,13 +355,13 @@ CONFIG_PACKAGE_udpxy=y
 CONFIG_PACKAGE_acme-acmesh-dnsapi=y
 CONFIG_PACKAGE_luci-app-acme=y
 CONFIG_PACKAGE_luci-ssl-openssl=y
-CONFIG_PACKAGE_luci-app-ddns-go=y
+#CONFIG_PACKAGE_luci-app-ddns-go=y
 CONFIG_PACKAGE_luci-app-uhttpd=y
 CONFIG_PACKAGE_msmtp=y
 CONFIG_PACKAGE_msmtp-mta=y
 CONFIG_PACKAGE_mutt=y
 CONFIG_PACKAGE_vim-fuller=y
-CONFIG_PACKAGE_luci-app-openclash=y
+#CONFIG_PACKAGE_luci-app-openclash=y
 # --- 基础工具 ---
 CONFIG_PACKAGE_curl=y
 CONFIG_PACKAGE_bash=y
