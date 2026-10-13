@@ -71,27 +71,27 @@ clone() {  # clone <url> <dir> [branch]
 #    修法是 apply 支持显式传参：apply <mode> [<fullcone6>] [<auto_offload>]
 #    本地旧版是从 UCI 读值，在保存流程中会读到旧值。
 # =========================================================
-#if [ "$ADD_LUCI_APP" = "true" ]; then
-#  LUCI_APP_URL="https://github.com/qwe3017/luci-app"
-#  LUCI_APP_TMP="$(mktemp -d)/luci-app"
+if [ "$ADD_LUCI_APP" = "true" ]; then
+  LUCI_APP_URL="https://github.com/qwe3017/luci-app"
+  LUCI_APP_TMP="$(mktemp -d)/luci-app"
 
-#  if ! clone "$LUCI_APP_URL" "$LUCI_APP_TMP" main; then
-#    echo "::error::qwe3017/luci-app 拉取失败，natmode / pon-status 会被 defconfig 剔除"
-#    exit 1
-#  fi
+  if ! clone "$LUCI_APP_URL" "$LUCI_APP_TMP" main; then
+    echo "::error::qwe3017/luci-app 拉取失败，natmode / pon-status 会被 defconfig 剔除"
+    exit 1
+  fi
 
-#  for p in luci-app-natmode luci-app-pon-status; do
-#    if [ ! -f "$LUCI_APP_TMP/$p/Makefile" ]; then
-#      echo "::error::$LUCI_APP_TMP/$p/Makefile 不存在，包无法被索引"
-#      exit 1
-#    fi
-#    rm -rf "$PKG_DIR/$p"
-#    cp -r "$LUCI_APP_TMP/$p" "$PKG_DIR/"
-#    echo "✅ 已拷贝: $p  (版本 $(grep -m1 '^PKG_VERSION' "$PKG_DIR/$p/Makefile" 2>/dev/null | sed 's/PKG_VERSION:=//'))"
-#  done
+  for p in luci-app-natmode luci-app-pon-status; do
+    if [ ! -f "$LUCI_APP_TMP/$p/Makefile" ]; then
+      echo "::error::$LUCI_APP_TMP/$p/Makefile 不存在，包无法被索引"
+      exit 1
+    fi
+    rm -rf "$PKG_DIR/$p"
+    cp -r "$LUCI_APP_TMP/$p" "$PKG_DIR/"
+    echo "✅ 已拷贝: $p  (版本 $(grep -m1 '^PKG_VERSION' "$PKG_DIR/$p/Makefile" 2>/dev/null | sed 's/PKG_VERSION:=//'))"
+  done
 
-#  rm -rf "$LUCI_APP_TMP"
-#fi
+  rm -rf "$LUCI_APP_TMP"
+fi
 
 # --- Airoha SoC 状态页（NPU 卸载 / CPU 频率 / Frame Engine / PPE 流表）---
 # 包名由目录名决定（luci.mk: PKG_NAME ?= $(notdir ${CURDIR})），
@@ -191,12 +191,12 @@ if [ "$ADD_AIROHA_NPU" = "true" ] && [ ! -d "$PKG_DIR/luci-app-airoha-npu" ]; th
 fi
 
 # natmode / pon-status 来自 qwe3017/luci-app（config 里也是 =y）
-#for p in luci-app-natmode luci-app-pon-status; do
-#  if [ "$ADD_LUCI_APP" = "true" ] && [ ! -d "$PKG_DIR/$p" ]; then
-#    echo "::error::$p 未拉到，config 里的 =y 会被 defconfig 剔除"
-#    exit 1
-#  fi
-#done
+for p in luci-app-natmode luci-app-pon-status; do
+  if [ "$ADD_LUCI_APP" = "true" ] && [ ! -d "$PKG_DIR/$p" ]; then
+    echo "::error::$p 未拉到，config 里的 =y 会被 defconfig 剔除"
+    exit 1
+  fi
+done
 
 # ---------------------------------------------------------
 # 清理重复嵌套目录
@@ -277,5 +277,29 @@ if [ -n "$(ls -A "$PKG_DIR" 2>/dev/null)" ]; then
       done
     fi
   done
+  echo "------------------------------------------"
+  echo "luci.mk: $([ -f feeds/luci/luci.mk ] && echo '✓' || echo '✗ 缺失（luci app 无法解析）')"
+  echo "tmp/.packageinfo 包总数: $(grep -c '^Package: ' tmp/.packageinfo 2>/dev/null || echo 0)"
+  echo "=========================================="
+
+  # 必装插件（config 里是 =y 的那几个）必须进索引，否则 defconfig 会静默剔除
+  REQUIRED=""
+  [ "$ADD_AIROHA_NPU" = "true" ] && REQUIRED="$REQUIRED luci-app-airoha-npu"
+  if [ "$ADD_LUCI_APP" = "true" ]; then
+    REQUIRED="$REQUIRED luci-app-natmode luci-app-pon-status"
+  fi
+  HARD_MISS=""
+  for r in $REQUIRED; do
+    grep -qx "Package: $r" tmp/.packageinfo 2>/dev/null || HARD_MISS="$HARD_MISS $r"
+  done
+  if [ -n "$HARD_MISS" ]; then
+    echo "::error::以下必装插件未进入 tmp/.packageinfo，defconfig 会把 .config 里的 =y 静默剔除:$HARD_MISS"
+    echo "  已索引缺失清单:$INDEX_MISS"
+    exit 1
+  fi
+  [ -n "$INDEX_MISS" ] && echo "::warning::部分可选包未进入索引（不影响必装插件）:$INDEX_MISS"
+else
+  echo "未启用任何第三方插件"
+fi
 
 echo "🎉 diy-part1.sh 执行完毕"
