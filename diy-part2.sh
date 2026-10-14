@@ -355,18 +355,18 @@ CONFIG_PACKAGE_udpxy=y
 CONFIG_PACKAGE_acme-acmesh-dnsapi=y
 CONFIG_PACKAGE_luci-app-acme=y
 CONFIG_PACKAGE_luci-ssl-openssl=y
-#CONFIG_PACKAGE_luci-app-ddns-go=y
+CONFIG_PACKAGE_luci-app-ddns-go=y
 CONFIG_PACKAGE_luci-app-uhttpd=y
 CONFIG_PACKAGE_msmtp=y
 CONFIG_PACKAGE_msmtp-mta=y
 CONFIG_PACKAGE_mutt=y
 CONFIG_PACKAGE_vim-fuller=y
-#CONFIG_PACKAGE_luci-app-openclash=y
 # --- 基础工具 ---
 CONFIG_PACKAGE_curl=y
 CONFIG_PACKAGE_bash=y
 CONFIG_PACKAGE_htop=y
-CONFIG_PACKAGE_luci-compat=y
+#CONFIG_PACKAGE_luci-app-openclash=y
+#CONFIG_PACKAGE_luci-compat=y #for openclash
 # 让 usb-power(regulator-output) 节点有驱动认领，防止 usb-5v 被
 # regulator late-cleanup 关闭（U 盘开机 ~34s 断电问题，等价 10.6 的防护）
 CONFIG_PACKAGE_kmod-regulator-userspace-consumer=y
