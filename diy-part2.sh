@@ -384,5 +384,26 @@ fi
 # Change 默认Luci的主题为Argon
 sed -i 's/+luci-theme-bootstrap/+luci-theme-argon/g; s/default Bootstrap theme/Argon theme/g' feeds/luci/collections/luci-light/Makefile
 
+## Clean Go build cache and mod cache to resolve ddns-go compilation errors
+#echo "=== Starting Go Environment and Cache Cleanup ==="
+
+## 1. Clear any conflicting local Go environment caches
+#go clean -modcache
+#go clean -cache
+
+## 2. Force reset Go Proxy to a stable mirror to avoid network download corruption
+#export GOPROXY=https://goproxy.io,direct
+
+## 3. Navigate to the ddns-go source directory (if downloaded via feeds) and force tidy
+#if [ -d "feeds/packages/net/ddns-go" ]; then
+#    echo "Tidying up ddns-go package dependencies..."
+#    cd feeds/packages/net/ddns-go
+#    # Force Git to reset any local uncommitted patch corruption if present
+#    [ -d ".git" ] && git reset --hard HEAD
+#    cd -
+#fi
+
+#echo "=== Go Environment and Cache Cleanup Complete ==="
+
 
 echo "🎉 diy-part2.sh 执行完毕 (author=$FW_AUTHOR)"
