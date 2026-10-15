@@ -83,7 +83,7 @@ on:
       ignore_cache:
         description: '忽略工具链缓存强制重编'
         required: false
-        default: 'true'
+        default: 'false'
         type: choice
         options:
           - 'false'
