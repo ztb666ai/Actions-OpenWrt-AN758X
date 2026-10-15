@@ -361,17 +361,18 @@ CONFIG_PACKAGE_msmtp=y
 CONFIG_PACKAGE_msmtp-mta=y
 CONFIG_PACKAGE_mutt=y
 CONFIG_PACKAGE_vim-fuller=y
+#CONFIG_PACKAGE_luci-app-openclash=y
+#CONFIG_PACKAGE_luci-compat=y #for openclash
 # --- 基础工具 ---
 CONFIG_PACKAGE_curl=y
 CONFIG_PACKAGE_bash=y
 CONFIG_PACKAGE_htop=y
-#CONFIG_PACKAGE_luci-app-openclash=y
-#CONFIG_PACKAGE_luci-compat=y #for openclash
 # 让 usb-power(regulator-output) 节点有驱动认领，防止 usb-5v 被
 # regulator late-cleanup 关闭（U 盘开机 ~34s 断电问题，等价 10.6 的防护）
 CONFIG_PACKAGE_kmod-regulator-userspace-consumer=y
-# EIP93 硬件加速（配合 10.7 内核补丁时再开）
+# EIP93 硬件加速（配合 10.7 内核补丁再开更好）
 CONFIG_PACKAGE_kmod-crypto-hw-eip93=y
+
 # --- 关闭默认包的模板 ---
 # 普通包：# CONFIG_PACKAGE_xxx is not set
 # CONFIG_PACKAGE_luci-theme-bootstrap is not set
@@ -381,6 +382,7 @@ CONFIG_PACKAGE_kmod-crypto-hw-eip93=y
 # CONFIG_MODULE_DEFAULT_xxx is not set
 EOF
 fi
+
 # Change 默认Luci的主题为Argon
 sed -i 's/+luci-theme-bootstrap/+luci-theme-argon/g; s/default Bootstrap theme/Argon theme/g' feeds/luci/collections/luci-light/Makefile
 
