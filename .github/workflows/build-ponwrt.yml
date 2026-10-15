@@ -703,6 +703,12 @@ jobs:
         if: env.BUILD_SCOPE != 'toolchain-only'
         run: |
           cd "$BUILD_ROOT/openwrt"
+
+          # Clean up corrupted or stale Go module paths before downloading for luci_DDNS-GO
+          echo "=== Purging stale Go module caches ==="
+          rm -rf dl/go-mod-cache
+          rm -f build_dir/target-aarch64_cortex-a53_musl/ddns-go-*./built
+          
           for i in 1 2 3; do
             echo "===== 第 $i 次尝试: make download ====="
             if make download -j8; then break; fi
