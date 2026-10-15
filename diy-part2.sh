@@ -380,6 +380,10 @@ CONFIG_PACKAGE_kmod-crypto-hw-eip93=y
 # CONFIG_PACKAGE_xxx is not set
 # CONFIG_DEFAULT_xxx is not set
 # CONFIG_MODULE_DEFAULT_xxx is not set
+# add 2026/10/15 to remove i2c tools
+# CONFIG_MODULE_DEFAULT_i2c-tools is not set
+# CONFIG_PACKAGE_libi2c is not set
+# CONFIG_PACKAGE_i2c-tools is not set
 EOF
 fi
 
