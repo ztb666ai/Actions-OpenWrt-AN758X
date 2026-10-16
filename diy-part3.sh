@@ -58,3 +58,28 @@ BAD=$(grep -E '^CONFIG_PACKAGE_luci-i18n-[a-zA-Z0-9_-]+-zh-cn=y' .config \
 	| grep -vE "luci-i18n-($(echo $KEEP | tr ' ' '|'))-zh-cn" || true)
 [ -z "$BAD" ] || { echo "白名单外残留:"; echo "$BAD"; exit 1; }
 echo "✔ 翻译裁剪完成"
+
+#!/bin/bash
+# diy-part3.sh —— make defconfig 之后、正式编译之前运行
+#cd "$BUILD_ROOT/openwrt"
+
+#KC=target/linux/airoha/an7583/config-6.18
+#if [ -f "$KC" ]; then
+#  while read -r line; do
+#    grep -qF "$line" "$KC" || echo "$line" >> "$KC"
+#  done <<'EOF'
+#CONFIG_CRYPTO_AES_ARM64=y
+#CONFIG_CRYPTO_AES_ARM64_BS=y
+#CONFIG_CRYPTO_AES_ARM64_CE=y
+#CONFIG_CRYPTO_AES_ARM64_CE_BLK=y
+#CONFIG_CRYPTO_AES_ARM64_CE_CCM=y
+#CONFIG_CRYPTO_AES_ARM64_NEON_BLK=y
+#CONFIG_CRYPTO_CBC=y
+#CONFIG_CRYPTO_GHASH_ARM64_CE=y
+# —— EIP-93(可选,想走 140G-MD 同款路线时打开)——
+#CONFIG_CRYPTO_HW=y
+#CONFIG_CRYPTO_DEV_EIP93=m
+#CONFIG_CRYPTO_DEV_EIP93_AES_128_SW_MAX_LEN=512
+#CONFIG_CRYPTO_DEV_EIP93_GENERIC_SW_MAX_LEN=256
+#EOF
+#fi
