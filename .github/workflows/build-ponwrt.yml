@@ -9,7 +9,7 @@ env:
   SOURCE: ${{ github.event.inputs.source || 'fork' }}
   # 唯一真相源：固件版本后缀的作者名（LuCI 概览页「固件版本」）
   FW_AUTHOR: 'ztb'
-  REPO_URL: ${{ github.event.inputs.source == 'pbs05/ponwrt' && 'https://github.com/pbs05/ponwrt' || 'https://github.com/qwe3017/ponwrt' }}
+  REPO_URL: ${{ github.event.inputs.source == 'pbs05/ponwrt' && 'https://github.com/pbs05/ponwrt' || 'https://github.com/ztb666ai/ponwrt' }}
   FEEDS_CONF: ''
   DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
