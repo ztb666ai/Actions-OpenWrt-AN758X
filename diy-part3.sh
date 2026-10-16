@@ -61,6 +61,8 @@ echo "✔ 翻译裁剪完成"
 
 #!/bin/bash
 # diy-part3.sh —— make defconfig 之后、正式编译之前运行
+# https://github.com/jzhou404gmail/ponwrt
+# activate AES for 040g-MF
 #cd "$BUILD_ROOT/openwrt"
 
 #KC=target/linux/airoha/an7583/config-6.18
