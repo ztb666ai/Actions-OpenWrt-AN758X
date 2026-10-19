@@ -1,0 +1,6 @@
+# This file is auto-generated and build-specific, any changes will be intentionally lost in sysupgrade.
+# Add your custom feeds to /etc/apk/repositories.d/customfeeds.list
+https://mirror.nju.edu.cn/immortalwrt/snapshots/targets/airoha/an7583/packages/packages.adb
+https://mirror.nju.edu.cn/immortalwrt/snapshots/packages/aarch64_cortex-a53/base/packages.adb
+https://mirror.nju.edu.cn/immortalwrt/snapshots/packages/aarch64_cortex-a53/luci/packages.adb
+https://mirror.nju.edu.cn/immortalwrt/snapshots/packages/aarch64_cortex-a53/packages/packages.adb
