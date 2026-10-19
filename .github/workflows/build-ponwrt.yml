@@ -47,6 +47,9 @@ on:
         description: 'ponwrt 源码分支'
         required: true
         default: 'master'
+        options:
+          - master
+          - pon
       soc:
         description: 'SoC 平台'
         required: true
