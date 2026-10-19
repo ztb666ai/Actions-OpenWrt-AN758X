@@ -47,6 +47,7 @@ on:
         description: 'ponwrt 源码分支'
         required: true
         default: 'master'
+        type: choice
         options:
           - master
           - pon
