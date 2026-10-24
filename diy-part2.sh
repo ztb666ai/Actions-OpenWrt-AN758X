@@ -396,10 +396,6 @@ fi
 # Change 默认Luci的主题为Argon
 sed -i 's/+luci-theme-bootstrap/+luci-theme-argon/g; s/default Bootstrap theme/Argon theme/g' feeds/luci/collections/luci-light/Makefile
 
-# Configure APK to allow untrusted packages
-mkdir -p files/etc/apk/
-echo "allow-untrusted" > files/etc/apk/config
-
 # Remove LuCI menus: System > Plugins, Network > Diagnostics
 python3 - <<'PY' || exit 1
 import json
