@@ -342,7 +342,70 @@ jobs:
             } >> .config
             echo "已裁剪为: CONFIG_TARGET_DEVICE_airoha_${SOC}_DEVICE_${PROFILE}=y"
           fi
+      # =========================================================
+      # 7.5 crypto 硬件加速配置（EIP93 + ARMv8 Crypto Extensions）
+      # 约束：必须在步骤 9 (make defconfig) 之前，PACKAGE_* 才能展开依赖
+      # =========================================================
+      - name: Add crypto acceleration config
+        run: |
+          cd "$BUILD_ROOT/openwrt"
 
+          # ---------- 1) 内核侧：追加到 subtarget 的 config-6.18 ----------
+          # 内核 config 不经过 defconfig，此步时机宽松，放这里只是顺手
+          if [ "$PROFILE" = "all" ]; then SUBS="an7581 an7583"; else SUBS="$SOC"; fi
+          for st in $SUBS; do
+            KC=$(ls -1 target/linux/airoha/${st}/config-* 2>/dev/null | sort -V | tail -1)
+            [ -f "$KC" ] || { echo "::error::target/linux/airoha/${st}/ 下无 config-*"; exit 1; }
+
+            # 先删这些符号的旧值（含 =m/is not set），保证追加值必然生效
+            sed -i -E '/^(# )?CONFIG_CRYPTO_(AES_ARM64|AES_ARM64_BS|AES_ARM64_CE|AES_ARM64_CE_BLK|AES_ARM64_CE_CCM|AES_ARM64_NEON_BLK|AUTHENC|CBC|CRC32C|DEFLATE|ECB|GHASH_ARM64_CE|HASH_INFO|HW|LIB_GF128MUL|LIB_SHA1|LIB_SHA1_ARCH|LIB_SHA256_ARCH|LIB_UTILS|LZO|USER_API_AEAD|USER_API_HASH|USER_API_SKCIPHER|ZSTD)(=| is not set$)/d' "$KC"
+            sed -i -E '/^(# )?CONFIG_CRYPTO_DEV_EIP93(_AES_128_SW_MAX_LEN|_GENERIC_SW_MAX_LEN)?(=| is not set$)/d' "$KC"
+
+            cat >> "$KC" <<'EOF'
+CONFIG_CRYPTO_AES_ARM64=y
+CONFIG_CRYPTO_AES_ARM64_BS=y
+CONFIG_CRYPTO_AES_ARM64_CE=y
+CONFIG_CRYPTO_AES_ARM64_CE_BLK=y
+CONFIG_CRYPTO_AES_ARM64_CE_CCM=y
+CONFIG_CRYPTO_AES_ARM64_NEON_BLK=y
+CONFIG_CRYPTO_AUTHENC=y
+CONFIG_CRYPTO_CBC=y
+CONFIG_CRYPTO_CRC32C=y
+CONFIG_CRYPTO_DEFLATE=y
+CONFIG_CRYPTO_ECB=y
+CONFIG_CRYPTO_GHASH_ARM64_CE=y
+CONFIG_CRYPTO_HASH_INFO=y
+CONFIG_CRYPTO_HW=y
+CONFIG_CRYPTO_LIB_GF128MUL=y
+CONFIG_CRYPTO_LIB_SHA1=y
+CONFIG_CRYPTO_LIB_SHA1_ARCH=y
+CONFIG_CRYPTO_LIB_SHA256_ARCH=y
+CONFIG_CRYPTO_LIB_UTILS=y
+CONFIG_CRYPTO_LZO=y
+CONFIG_CRYPTO_USER_API_AEAD=y
+CONFIG_CRYPTO_USER_API_HASH=y
+CONFIG_CRYPTO_USER_API_SKCIPHER=y
+CONFIG_CRYPTO_ZSTD=y
+CONFIG_CRYPTO_DEV_EIP93=y
+CONFIG_CRYPTO_DEV_EIP93_AES_128_SW_MAX_LEN=512
+CONFIG_CRYPTO_DEV_EIP93_GENERIC_SW_MAX_LEN=256
+EOF
+
+            # 自校验：未知符号会被 kconfig 静默丢弃，这里必须能查到
+            for s in CRYPTO_DEV_EIP93 CRYPTO_AES_ARM64_CE CRYPTO_USER_API_SKCIPHER; do
+              grep -q "^CONFIG_${s}=" "$KC" || { echo "::error::${s} 未写入 $KC"; exit 1; }
+            done
+            echo "✅ 内核 crypto 配置已写入 $KC"
+          done
+
+          # ---------- 2) 包侧：写入根 .config（必须在 defconfig 之前） ----------
+          sed -i -E '/^(# )?CONFIG_PACKAGE_(kmod-cryptodev|libopenssl-devcrypto)(=| is not set$)/d' .config
+          cat >> .config <<'EOF'
+CONFIG_PACKAGE_kmod-cryptodev=y
+CONFIG_PACKAGE_libopenssl-devcrypto=y
+EOF
+          echo "✅ 包配置已写入 .config，等待步骤 9 defconfig 展开依赖"   
+     
       # =========================================================
       # 8. diy-part2.sh —— 时区改为中国、写入固件版本后缀
       # =========================================================
