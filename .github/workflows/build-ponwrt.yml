@@ -362,34 +362,34 @@ jobs:
             sed -i -E '/^(# )?CONFIG_CRYPTO_DEV_EIP93(_AES_128_SW_MAX_LEN|_GENERIC_SW_MAX_LEN)?(=| is not set$)/d' "$KC"
 
             cat >> "$KC" <<'EOF'
-              CONFIG_CRYPTO_AES_ARM64=y
-              CONFIG_CRYPTO_AES_ARM64_BS=y
-              CONFIG_CRYPTO_AES_ARM64_CE=y
-              CONFIG_CRYPTO_AES_ARM64_CE_BLK=y
-              CONFIG_CRYPTO_AES_ARM64_CE_CCM=y
-              CONFIG_CRYPTO_AES_ARM64_NEON_BLK=y
-              CONFIG_CRYPTO_AUTHENC=y
-              CONFIG_CRYPTO_CBC=y
-              CONFIG_CRYPTO_CRC32C=y
-              CONFIG_CRYPTO_DEFLATE=y
-              CONFIG_CRYPTO_ECB=y
-              CONFIG_CRYPTO_GHASH_ARM64_CE=y
-              CONFIG_CRYPTO_HASH_INFO=y
-              CONFIG_CRYPTO_HW=y
-              CONFIG_CRYPTO_LIB_GF128MUL=y
-              CONFIG_CRYPTO_LIB_SHA1=y
-              CONFIG_CRYPTO_LIB_SHA1_ARCH=y
-              CONFIG_CRYPTO_LIB_SHA256_ARCH=y
-              CONFIG_CRYPTO_LIB_UTILS=y
-              CONFIG_CRYPTO_LZO=y
-              CONFIG_CRYPTO_USER_API_AEAD=y
-              CONFIG_CRYPTO_USER_API_HASH=y
-              CONFIG_CRYPTO_USER_API_SKCIPHER=y
-              CONFIG_CRYPTO_ZSTD=y
-              CONFIG_CRYPTO_DEV_EIP93=y
-              CONFIG_CRYPTO_DEV_EIP93_AES_128_SW_MAX_LEN=512
-              CONFIG_CRYPTO_DEV_EIP93_GENERIC_SW_MAX_LEN=256
-              EOF
+CONFIG_CRYPTO_AES_ARM64=y
+CONFIG_CRYPTO_AES_ARM64_BS=y
+CONFIG_CRYPTO_AES_ARM64_CE=y
+CONFIG_CRYPTO_AES_ARM64_CE_BLK=y
+CONFIG_CRYPTO_AES_ARM64_CE_CCM=y
+CONFIG_CRYPTO_AES_ARM64_NEON_BLK=y
+CONFIG_CRYPTO_AUTHENC=y
+CONFIG_CRYPTO_CBC=y
+CONFIG_CRYPTO_CRC32C=y
+CONFIG_CRYPTO_DEFLATE=y
+CONFIG_CRYPTO_ECB=y
+CONFIG_CRYPTO_GHASH_ARM64_CE=y
+CONFIG_CRYPTO_HASH_INFO=y
+CONFIG_CRYPTO_HW=y
+CONFIG_CRYPTO_LIB_GF128MUL=y
+CONFIG_CRYPTO_LIB_SHA1=y
+CONFIG_CRYPTO_LIB_SHA1_ARCH=y
+CONFIG_CRYPTO_LIB_SHA256_ARCH=y
+CONFIG_CRYPTO_LIB_UTILS=y
+CONFIG_CRYPTO_LZO=y
+CONFIG_CRYPTO_USER_API_AEAD=y
+CONFIG_CRYPTO_USER_API_HASH=y
+CONFIG_CRYPTO_USER_API_SKCIPHER=y
+CONFIG_CRYPTO_ZSTD=y
+CONFIG_CRYPTO_DEV_EIP93=y
+CONFIG_CRYPTO_DEV_EIP93_AES_128_SW_MAX_LEN=512
+CONFIG_CRYPTO_DEV_EIP93_GENERIC_SW_MAX_LEN=256
+EOF
 
             # 自校验：未知符号会被 kconfig 静默丢弃，这里必须能查到
             for s in CRYPTO_DEV_EIP93 CRYPTO_AES_ARM64_CE CRYPTO_USER_API_SKCIPHER; do
@@ -397,34 +397,7 @@ jobs:
             done
             echo "✅ 内核 crypto 配置已写入 $KC"
           done
-
-          # ---------- 2) 包侧：写入根 .config（必须在 defconfig 之前） ----------
-          sed -i -E '/^(# )?CONFIG_PACKAGE_(kmod-cryptodev|libopenssl-devcrypto)(=| is not set$)/d' .config
-          cat >> .config <<'EOF'
-          CONFIG_PACKAGE_kmod-cryptodev=y
-          CONFIG_PACKAGE_libopenssl-devcrypto=y
-          CONFIG_KERNEL_BPF=y
-          CONFIG_KERNEL_BPF_SYSCALL=y
-          CONFIG_KERNEL_BPF_EVENTS=y
-          CONFIG_KERNEL_CGROUPS=y
-          CONFIG_KERNEL_CGROUP_BPF=y
-          CONFIG_KERNEL_CGROUP_CPUACCT=y
-          CONFIG_KERNEL_CGROUP_PIDS=y
-          CONFIG_KERNEL_MEMCG=y
-          CONFIG_BPF_TOOLCHAIN_HOST=y
-          CONFIG_KERNEL_DEBUG_INFO=y
-          CONFIG_KERNEL_DEBUG_INFO_REDUCED=n
-          CONFIG_KERNEL_DEBUG_INFO_BTF=y
-          CONFIG_KERNEL_BPF_JIT=y
-          CONFIG_KERNEL_BPF_JIT_ALWAYS_ON=y
-          CONFIG_PACKAGE_bpftool=y
-          CONFIG_PACKAGE_kmod-sched-bpf=y
-          CONFIG_PACKAGE_kmod-sched-cake=y
-          CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
-          CONFIG_KERNEL_XDP_SOCKETS=y
-          EOF
-          echo "✅ 包配置已写入 .config，等待步骤 9 defconfig 展开依赖"   
-     
+    
       # =========================================================
       # 8. diy-part2.sh —— 时区改为中国、写入固件版本后缀
       # =========================================================
