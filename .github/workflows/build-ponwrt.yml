@@ -403,6 +403,25 @@ jobs:
           cat >> .config <<'EOF'
           CONFIG_PACKAGE_kmod-cryptodev=y
           CONFIG_PACKAGE_libopenssl-devcrypto=y
+          CONFIG_KERNEL_BPF=y
+          CONFIG_KERNEL_BPF_SYSCALL=y
+          CONFIG_KERNEL_BPF_EVENTS=y
+          CONFIG_KERNEL_CGROUPS=y
+          CONFIG_KERNEL_CGROUP_BPF=y
+          CONFIG_KERNEL_CGROUP_CPUACCT=y
+          CONFIG_KERNEL_CGROUP_PIDS=y
+          CONFIG_KERNEL_MEMCG=y
+          CONFIG_BPF_TOOLCHAIN_HOST=y
+          CONFIG_KERNEL_DEBUG_INFO=y
+          CONFIG_KERNEL_DEBUG_INFO_REDUCED=n
+          CONFIG_KERNEL_DEBUG_INFO_BTF=y
+          CONFIG_KERNEL_BPF_JIT=y
+          CONFIG_KERNEL_BPF_JIT_ALWAYS_ON=y
+          CONFIG_PACKAGE_bpftool=y
+          CONFIG_PACKAGE_kmod-sched-bpf=y
+          CONFIG_PACKAGE_kmod-sched-cake=y
+          CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
+          CONFIG_KERNEL_XDP_SOCKETS=y
           EOF
           echo "✅ 包配置已写入 .config，等待步骤 9 defconfig 展开依赖"   
      
