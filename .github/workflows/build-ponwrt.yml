@@ -386,8 +386,8 @@ jobs:
           make defconfig 2>&1 | tail -5
 
           # 定制中文安装包
-          chmod +x "$GITHUB_WORKSPACE/$DIY_P3_SH"
-          "$GITHUB_WORKSPACE/$DIY_P3_SH"
+          #chmod +x "$GITHUB_WORKSPACE/$DIY_P3_SH"
+          #"$GITHUB_WORKSPACE/$DIY_P3_SH"
           
           # =========================================================
           # 关键包校验：defconfig 会把 feeds 里不存在的包静默剔除，
