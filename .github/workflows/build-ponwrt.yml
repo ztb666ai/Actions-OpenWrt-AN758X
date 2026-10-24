@@ -38,7 +38,7 @@ on:
       source:
         description: '编译源码仓库'
         required: true
-        default: 'pbs05/ponwrt'
+        default: 'fork'
         type: choice
         options:
           - fork
