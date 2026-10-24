@@ -373,8 +373,6 @@ CONFIG_PACKAGE_kmod-regulator-userspace-consumer=y
 # EIP93 硬件加速（配合 10.7 内核补丁再开更好）
 CONFIG_PACKAGE_kmod-crypto-hw-eip93=y
 CONFIG_PACKAGE_kmod-cryptodev=y
-CONFIG_PACKAGE_libopenssl-devcrypto=y
-CONFIG_PACKAGE_bpftool=y
 CONFIG_PACKAGE_kmod-sched-bpf=y
 CONFIG_PACKAGE_kmod-sched-cake=y
 CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
