@@ -271,6 +271,7 @@ else
 fi
 
 # https://github.com/QiuSimons/luci-app-dae
+rm -rf feeds/luci/applications/luci-app-dae
 git clone https://github.com/QiuSimons/luci-app-dae "$PKG_DIR/luci-app-dae"
 
 echo "🎉 diy-part1.sh 执行完毕"
