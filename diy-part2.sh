@@ -361,6 +361,7 @@ CONFIG_PACKAGE_msmtp=y
 CONFIG_PACKAGE_msmtp-mta=y
 CONFIG_PACKAGE_mutt=y
 CONFIG_PACKAGE_vim-fuller=y
+CONFIG_PACKAGE_luci-app-dae=y
 #CONFIG_PACKAGE_luci-app-openclash=y
 #CONFIG_PACKAGE_luci-compat=y #for openclash
 # --- 基础工具 ---
