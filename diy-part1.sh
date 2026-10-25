@@ -270,4 +270,7 @@ else
   echo "未启用任何第三方插件"
 fi
 
+# https://github.com/QiuSimons/luci-app-dae
+git clone https://github.com/QiuSimons/luci-app-dae "$PKG_DIR/luci-app-dae"
+
 echo "🎉 diy-part1.sh 执行完毕"
