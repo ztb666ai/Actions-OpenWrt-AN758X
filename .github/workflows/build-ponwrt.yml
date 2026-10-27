@@ -239,44 +239,51 @@ jobs:
           echo "FW_AUTHOR=${FW_AUTHOR:-qwe}" >> "$GITHUB_ENV"
 
           cd openwrt && echo "commit: $(git rev-parse --short HEAD)"
-
       # =========================================================
-      # 2.5 AN7583 内核 ARMv8 CE / EIP-93 硬件 AES 配置注入
-      # 详见 docs/an7583-armv8-crypto-check.md
-      # 仅 an7583 生效；an7581 无 Crypto Extensions，不能开
+      # 2.5 内核 config 注入（平台无关符号 + SoC 特定块）
+      # 平台无关：TCP_CONG_BBR1（net/ipv4，generic 层，对所有 SoC 生效）
+      # SoC 特定：crypto（an7583 开 CE 硬件 AES，an7581 走 BS 软 AES）
       # =========================================================
-      - name: Patch an7583 kernel crypto config
-        if: env.SOC == 'an7583'
+      - name: Patch kernel config (generic + SoC-specific)
         run: |
           cd "$BUILD_ROOT/openwrt"
-          KCONF="target/linux/airoha/an7583/config-6.18"
-          if [ ! -f "$KCONF" ]; then
-            echo "::error::未找到 $KCONF，请核对 kernel patchver 与 target 路径"
+      
+          # ---------- 1) 平台无关：generic 层写 BBR1，覆盖 an7581/an7583 ----------
+          GEN_CONF="target/linux/generic/config-6.18"
+          if [ -f "$GEN_CONF" ]; then
+            sed -i -e '/^CONFIG_TCP_CONG_BBR1=/d' -e '/^# CONFIG_TCP_CONG_BBR1 is not set$/d' "$GEN_CONF"
+            echo 'CONFIG_TCP_CONG_BBR1=m' >> "$GEN_CONF"
+            echo "✅ generic/config-6.18: TCP_CONG_BBR1=m 已写入"
+          else
+            echo "::error::未找到 $GEN_CONF，请核对 kernel patchver"
             exit 1
           fi
       
-          # 幂等：先剥掉旧的同名行（含 "is not set"），再追加，避免重复运行时叠加
+          # ---------- 2) SoC 特定：crypto 块分发 ----------
+          case "$SOC" in
+            an7583) KCONF="target/linux/airoha/an7583/config-6.18" ;;
+            an7581) KCONF="target/linux/airoha/an7581/config-6.18" ;;
+            *) echo "::error::未知 SOC=$SOC"; exit 1 ;;
+          esac
+          [ -f "$KCONF" ] || { echo "::error::未找到 $KCONF"; exit 1; }
+      
+          # 幂等剥除（防 rerun 叠加；BBR1 也顺手清一遍，防 SoC 层残留覆盖 generic）
           for key in \
-            CRYPTO_AES_ARM64 \
-            CRYPTO_AES_ARM64_BS \
-            CRYPTO_AES_ARM64_CE \
-            CRYPTO_AES_ARM64_CE_BLK \
-            CRYPTO_AES_ARM64_CE_CCM \
-            CRYPTO_AES_ARM64_NEON_BLK \
-            CRYPTO_AUTHENC \
-            CRYPTO_CBC \
-            CRYPTO_GHASH_ARM64_CE \
-            CRYPTO_HW \
-            CRYPTO_DEV_EIP93 \
-            CRYPTO_DEV_EIP93_AES_128_SW_MAX_LEN \
-            CRYPTO_DEV_EIP93_GENERIC_SW_MAX_LEN \
-            CRYPTO_USER_API_AEAD \
-            CRYPTO_USER_API_HASH \
-            CRYPTO_USER_API_SKCIPHER; do
+            CRYPTO_AES CRYPTO_AES_ARM64 CRYPTO_AES_ARM64_BS \
+            CRYPTO_AES_ARM64_CE CRYPTO_AES_ARM64_CE_BLK CRYPTO_AES_ARM64_CE_CCM \
+            CRYPTO_AES_ARM64_NEON_BLK CRYPTO_SIMD \
+            CRYPTO_AUTHENC CRYPTO_CBC CRYPTO_CTR CRYPTO_XTS \
+            CRYPTO_GHASH CRYPTO_GHASH_ARM64_CE CRYPTO_GCM \
+            CRYPTO_HW CRYPTO_DEV_EIP93 \
+            CRYPTO_DEV_EIP93_AES_128_SW_MAX_LEN CRYPTO_DEV_EIP93_GENERIC_SW_MAX_LEN \
+            CRYPTO_USER_API_AEAD CRYPTO_USER_API_HASH CRYPTO_USER_API_SKCIPHER \
+            TCP_CONG_BBR1; do
             sed -i -e "/^CONFIG_${key}=/d" -e "/^# CONFIG_${key} is not set$/d" "$KCONF"
           done
       
-          cat >> "$KCONF" <<'EOF'
+          case "$SOC" in
+            an7583)
+              cat >> "$KCONF" <<'EOF'
           CONFIG_CRYPTO_AES_ARM64=y
           CONFIG_CRYPTO_AES_ARM64_BS=y
           CONFIG_CRYPTO_AES_ARM64_CE=y
@@ -293,18 +300,43 @@ jobs:
           CONFIG_CRYPTO_USER_API_AEAD=y
           CONFIG_CRYPTO_USER_API_HASH=y
           CONFIG_CRYPTO_USER_API_SKCIPHER=y
-          CONFIG_TCP_CONG_BBR1=m
           EOF
+              ;;
+            an7581)
+              cat >> "$KCONF" <<'EOF'
+          CONFIG_CRYPTO_AES=y
+          CONFIG_CRYPTO_AES_ARM64=y
+          CONFIG_CRYPTO_AES_ARM64_BS=y
+          CONFIG_CRYPTO_AES_ARM64_NEON_BLK=y
+          CONFIG_CRYPTO_SIMD=y
+          CONFIG_CRYPTO_CBC=y
+          CONFIG_CRYPTO_CTR=y
+          CONFIG_CRYPTO_XTS=y
+          CONFIG_CRYPTO_GHASH=y
+          CONFIG_CRYPTO_GCM=y
+          CONFIG_CRYPTO_HW=y
+          CONFIG_CRYPTO_DEV_EIP93=m
+          CONFIG_CRYPTO_AUTHENC=y
+          CONFIG_CRYPTO_DEV_EIP93_AES_128_SW_MAX_LEN=512
+          CONFIG_CRYPTO_DEV_EIP93_GENERIC_SW_MAX_LEN=256
+          EOF
+              ;;
+          esac
       
-          # 校验：16 条全到位才放行，防止静默丢行导致编完才发现没开硬件 AES
-          GOT=$(grep -Ec '^CONFIG_(CRYPTO_AES_ARM64|CRYPTO_AES_ARM64_BS|CRYPTO_AES_ARM64_CE|CRYPTO_AES_ARM64_CE_BLK|CRYPTO_AES_ARM64_CE_CCM|CRYPTO_AES_ARM64_NEON_BLK|CRYPTO_AUTHENC|CRYPTO_CBC|CRYPTO_GHASH_ARM64_CE|CRYPTO_HW|CRYPTO_DEV_EIP93=|CRYPTO_DEV_EIP93_AES_128_SW_MAX_LEN|CRYPTO_DEV_EIP93_GENERIC_SW_MAX_LEN|CRYPTO_USER_API_AEAD|CRYPTO_USER_API_HASH|CRYPTO_USER_API_SKCIPHER)' "$KCONF")
-          echo "内核 crypto 配置注入完成：$GOT / 16 条"
-          if [ "$GOT" -lt 16 ]; then
-            echo "::error::crypto 配置注入不完整，检查上方输出"
-            grep -E '^CONFIG_CRYPTO' "$KCONF"
-            exit 1
-          fi
-          echo "✅ AN7583 内核 CE / EIP-93 配置已写入 $KCONF"
+          # 3) SoC 层也补一份 BBR1，双保险（合并时 subtarget 优先级最高）
+          echo 'CONFIG_TCP_CONG_BBR1=m' >> "$KCONF"
+      
+          # ---------- 4) 校验 ----------
+          case "$SOC" in
+            an7583) EXPECT=17 ;;
+            an7581) EXPECT=16 ;;
+          esac
+          GOT=$(grep -cE '^CONFIG_(CRYPTO|TCP_CONG_BBR1)' "$KCONF")
+          echo "内核 config 注入：$GOT / $EXPECT 条"
+          [ "$GOT" -ge "$EXPECT" ] || { echo "::error::配置注入不完整"; grep -E '^CONFIG_(CRYPTO|TCP)' "$KCONF"; exit 1; }
+          echo "✅ $SOC 内核 config 已注入"
+
+
       # =========================================================
       # 2.6 AN7581 内核软 AES / EIP-93 配置注入
       # AN7581 无 ARMv8 CE，走 NEON 位切片 + generic；EIP-93 可选硬件路径
