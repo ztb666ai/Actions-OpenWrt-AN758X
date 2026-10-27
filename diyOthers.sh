@@ -1,3 +1,4 @@
+https://github.com/1018ji/build-ponwrt-daily
 target/linux/airoha/an7583/config-6.18
 CONFIG_CRYPTO_AES_ARM64=y
 CONFIG_CRYPTO_AES_ARM64_BS=y
