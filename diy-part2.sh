@@ -17,7 +17,7 @@ set -euo pipefail
 
 # ---- 可调参数（均有默认值，可用环境变量覆盖，不必改代码）----
 LAN_IP="${LAN_IP:-192.168.2.1}"                     # [10] 默认 LAN IP
-LAN_HOSTNAME="${LAN_HOSTNAME:-PonWrt}"              # [10] 默认主机名
+LAN_HOSTNAME="${LAN_HOSTNAME:-ZtbWrt}"              # [10] 默认主机名
 ENABLE_USB_OPT_MOUNT="${ENABLE_USB_OPT_MOUNT:-1}"   # [7.7] USB 自动挂载 /opt 开关
 ENABLE_SYSCTL_TUNING="${ENABLE_SYSCTL_TUNING:-1}"   # [7.9] sysctl 调优开关
 
