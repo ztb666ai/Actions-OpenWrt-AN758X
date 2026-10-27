@@ -304,6 +304,67 @@ jobs:
             exit 1
           fi
           echo "✅ AN7583 内核 CE / EIP-93 配置已写入 $KCONF"
+      # =========================================================
+      # 2.6 AN7581 内核软 AES / EIP-93 配置注入
+      # AN7581 无 ARMv8 CE，走 NEON 位切片 + generic；EIP-93 可选硬件路径
+      # =========================================================
+      - name: Patch an7581 kernel crypto config
+        if: env.SOC == 'an7581'
+        run: |
+          cd "$BUILD_ROOT/openwrt"
+          KCONF="target/linux/airoha/an7581/config-6.18"
+          if [ ! -f "$KCONF" ]; then
+            echo "::error::未找到 $KCONF，请核对 kernel patchver"
+            exit 1
+          fi
+      
+          # 幂等：先剥旧值再追加，rerun 不叠加
+          for key in \
+            CRYPTO_AES \
+            CRYPTO_AES_ARM64 \
+            CRYPTO_AES_ARM64_BS \
+            CRYPTO_AES_ARM64_NEON_BLK \
+            CRYPTO_SIMD \
+            CRYPTO_CBC \
+            CRYPTO_CTR \
+            CRYPTO_XTS \
+            CRYPTO_GHASH \
+            CRYPTO_GCM \
+            CRYPTO_HW \
+            CRYPTO_DEV_EIP93 \
+            CRYPTO_AUTHENC \
+            CRYPTO_DEV_EIP93_AES_128_SW_MAX_LEN \
+            CRYPTO_DEV_EIP93_GENERIC_SW_MAX_LEN; do
+            sed -i -e "/^CONFIG_${key}=/d" -e "/^# CONFIG_${key} is not set$/d" "$KCONF"
+          done
+      
+          cat >> "$KCONF" <<'EOF'
+          CONFIG_CRYPTO_AES=y
+          CONFIG_CRYPTO_AES_ARM64=y
+          CONFIG_CRYPTO_AES_ARM64_BS=y
+          CONFIG_CRYPTO_AES_ARM64_NEON_BLK=y
+          CONFIG_CRYPTO_SIMD=y
+          CONFIG_CRYPTO_CBC=y
+          CONFIG_CRYPTO_CTR=y
+          CONFIG_CRYPTO_XTS=y
+          CONFIG_CRYPTO_GHASH=y
+          CONFIG_CRYPTO_GCM=y
+          CONFIG_CRYPTO_HW=y
+          CONFIG_CRYPTO_DEV_EIP93=m
+          CONFIG_CRYPTO_AUTHENC=y
+          CONFIG_CRYPTO_DEV_EIP93_AES_128_SW_MAX_LEN=512
+          CONFIG_CRYPTO_DEV_EIP93_GENERIC_SW_MAX_LEN=256
+          EOF
+      
+          # 校验：15 条全到位才放行（缺一条都可能导致刷机后软 AES 没生效）
+          GOT=$(grep -Ec '^CONFIG_(CRYPTO_AES=|CRYPTO_AES_ARM64=|CRYPTO_AES_ARM64_BS=|CRYPTO_AES_ARM64_NEON_BLK=|CRYPTO_SIMD=|CRYPTO_CBC=|CRYPTO_CTR=|CRYPTO_XTS=|CRYPTO_GHASH=|CRYPTO_GCM=|CRYPTO_HW=|CRYPTO_DEV_EIP93=m|CRYPTO_AUTHENC=|CRYPTO_DEV_EIP93_AES_128_SW_MAX_LEN=|CRYPTO_DEV_EIP93_GENERIC_SW_MAX_LEN=)' "$KCONF")
+          echo "an7581 crypto 配置注入完成：$GOT / 15 条"
+          if [ "$GOT" -lt 15 ]; then
+            echo "::error::配置注入不完整"
+            grep -E '^CONFIG_CRYPTO' "$KCONF"
+            exit 1
+          fi
+          echo "✅ AN7581 软 AES / EIP-93 配置已写入 $KCONF"
 
       # =========================================================
       # 3. dl 下载缓存
