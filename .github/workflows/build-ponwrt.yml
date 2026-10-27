@@ -516,7 +516,51 @@ jobs:
           WIFI_5G_COUNTRY="$WIFI_5G_COUNTRY" WIFI_5G_CHANNEL="$WIFI_5G_CHANNEL" \
           WIFI_5G_HTMODE="$WIFI_5G_HTMODE" WIFI_5G_FALLBACK="$WIFI_5G_FALLBACK" \
             "$GITHUB_WORKSPACE/$DIY_P2_SH"
-       
+
+      # =========================================================
+      # 8.6 代理变体注入（新增）：按 workflow_dispatch 输入统一控制 dae / openclash
+      # 无论 diy-part2.sh / configs/*.config 里写了什么代理包行，
+      # 这里都先剥除再按需追加，保证最终 .config 与输入一致
+      # =========================================================
+      - name: Inject proxy variant into .config
+        env:
+          PROXY_RAW: ${{ github.event.inputs.proxy }}
+        run: |
+          cd "$BUILD_ROOT/openwrt"
+          PROXY=$(printf '%s' "$PROXY_RAW" | tr '[:upper:]' '[:lower:]' | xargs)
+          case "$PROXY" in
+            openclash) VARIANT="openclash" ;;
+            dae)       VARIANT="dae" ;;
+            "")        VARIANT="bare" ;;
+            *) echo "::error::proxy 只支持 openclash / dae / 留空，收到: '$PROXY_RAW'"; exit 1 ;;
+          esac
+          echo "PROXY_VARIANT=$VARIANT" >> "$GITHUB_ENV"
+
+          # dae 家族 + openclash 家族全部幂等剥除（=y 与 is not set 两种形态都清）
+          DAE_PKGS="dae daed daed-router honk luci-app-dae luci-app-daed luci-app-daede luci-app-daed-router luci-app-honk"
+          OC_PKGS="openclash luci-app-openclash"
+          for p in $DAE_PKGS $OC_PKGS; do
+            sed -i -e "/^CONFIG_PACKAGE_${p}=/d" \
+                   -e "/^# CONFIG_PACKAGE_${p} is not set\$/d" .config
+          done
+
+          case "$VARIANT" in
+            openclash)
+              echo 'CONFIG_PACKAGE_luci-app-openclash=y' >> .config
+              ;;
+            dae)
+              echo 'CONFIG_PACKAGE_luci-app-dae=y' >> .config
+              grep -q '^CONFIG_KERNEL_DEBUG_INFO_BTF=y' .config || \
+                echo 'CONFIG_KERNEL_DEBUG_INFO_BTF=y' >> .config
+              ;;
+            bare)
+              for p in $DAE_PKGS $OC_PKGS; do
+                echo "# CONFIG_PACKAGE_${p} is not set" >> .config
+              done
+              ;;
+          esac
+          echo "✅ 代理变体注入完成: $VARIANT"
+
       # =========================================================
       # 8.5 从固件中去掉不想编译的包（示例：zh-cn 中文翻译包）
       # ⚠ 必须放在步骤 9 的 make defconfig 之前（全流程唯一一次 defconfig）
