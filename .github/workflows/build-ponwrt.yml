@@ -241,6 +241,71 @@ jobs:
           cd openwrt && echo "commit: $(git rev-parse --short HEAD)"
 
       # =========================================================
+      # 2.5 AN7583 内核 ARMv8 CE / EIP-93 硬件 AES 配置注入
+      # 详见 docs/an7583-armv8-crypto-check.md
+      # 仅 an7583 生效；an7581 无 Crypto Extensions，不能开
+      # =========================================================
+      - name: Patch an7583 kernel crypto config
+        if: env.SOC == 'an7583'
+        run: |
+          cd "$BUILD_ROOT/openwrt"
+          KCONF="target/linux/airoha/an7583/config-6.18"
+          if [ ! -f "$KCONF" ]; then
+            echo "::error::未找到 $KCONF，请核对 kernel patchver 与 target 路径"
+            exit 1
+          fi
+      
+          # 幂等：先剥掉旧的同名行（含 "is not set"），再追加，避免重复运行时叠加
+          for key in \
+            CRYPTO_AES_ARM64 \
+            CRYPTO_AES_ARM64_BS \
+            CRYPTO_AES_ARM64_CE \
+            CRYPTO_AES_ARM64_CE_BLK \
+            CRYPTO_AES_ARM64_CE_CCM \
+            CRYPTO_AES_ARM64_NEON_BLK \
+            CRYPTO_AUTHENC \
+            CRYPTO_CBC \
+            CRYPTO_GHASH_ARM64_CE \
+            CRYPTO_HW \
+            CRYPTO_DEV_EIP93 \
+            CRYPTO_DEV_EIP93_AES_128_SW_MAX_LEN \
+            CRYPTO_DEV_EIP93_GENERIC_SW_MAX_LEN \
+            CRYPTO_USER_API_AEAD \
+            CRYPTO_USER_API_HASH \
+            CRYPTO_USER_API_SKCIPHER; do
+            sed -i -e "/^CONFIG_${key}=/d" -e "/^# CONFIG_${key} is not set$/d" "$KCONF"
+          done
+      
+          cat >> "$KCONF" <<'EOF'
+          CONFIG_CRYPTO_AES_ARM64=y
+          CONFIG_CRYPTO_AES_ARM64_BS=y
+          CONFIG_CRYPTO_AES_ARM64_CE=y
+          CONFIG_CRYPTO_AES_ARM64_CE_BLK=y
+          CONFIG_CRYPTO_AES_ARM64_CE_CCM=y
+          CONFIG_CRYPTO_AES_ARM64_NEON_BLK=y
+          CONFIG_CRYPTO_AUTHENC=y
+          CONFIG_CRYPTO_CBC=y
+          CONFIG_CRYPTO_GHASH_ARM64_CE=y
+          CONFIG_CRYPTO_HW=y
+          CONFIG_CRYPTO_DEV_EIP93=m
+          CONFIG_CRYPTO_DEV_EIP93_AES_128_SW_MAX_LEN=512
+          CONFIG_CRYPTO_DEV_EIP93_GENERIC_SW_MAX_LEN=256
+          CONFIG_CRYPTO_USER_API_AEAD=y
+          CONFIG_CRYPTO_USER_API_HASH=y
+          CONFIG_CRYPTO_USER_API_SKCIPHER=y
+          EOF
+      
+          # 校验：16 条全到位才放行，防止静默丢行导致编完才发现没开硬件 AES
+          GOT=$(grep -Ec '^CONFIG_(CRYPTO_AES_ARM64|CRYPTO_AES_ARM64_BS|CRYPTO_AES_ARM64_CE|CRYPTO_AES_ARM64_CE_BLK|CRYPTO_AES_ARM64_CE_CCM|CRYPTO_AES_ARM64_NEON_BLK|CRYPTO_AUTHENC|CRYPTO_CBC|CRYPTO_GHASH_ARM64_CE|CRYPTO_HW|CRYPTO_DEV_EIP93=|CRYPTO_DEV_EIP93_AES_128_SW_MAX_LEN|CRYPTO_DEV_EIP93_GENERIC_SW_MAX_LEN|CRYPTO_USER_API_AEAD|CRYPTO_USER_API_HASH|CRYPTO_USER_API_SKCIPHER)' "$KCONF")
+          echo "内核 crypto 配置注入完成：$GOT / 16 条"
+          if [ "$GOT" -lt 16 ]; then
+            echo "::error::crypto 配置注入不完整，检查上方输出"
+            grep -E '^CONFIG_CRYPTO' "$KCONF"
+            exit 1
+          fi
+          echo "✅ AN7583 内核 CE / EIP-93 配置已写入 $KCONF"
+
+      # =========================================================
       # 3. dl 下载缓存
       # =========================================================
       - name: Cache dl directory
