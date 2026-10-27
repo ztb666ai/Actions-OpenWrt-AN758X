@@ -87,7 +87,6 @@ on:
           - ''
           - openclash
           - dae
-
       scope:
         description: '构建范围 (toolchain-only 仅预热工具链缓存)'
         required: true
