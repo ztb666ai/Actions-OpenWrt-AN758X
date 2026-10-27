@@ -272,12 +272,12 @@ fi
 
 # https://github.com/QiuSimons/luci-app-dae
 rm -rf feeds/luci/applications/luci-app-dae
-git clone https://github.com/QiuSimons/luci-app-dae "$PKG_DIR/luci-app-dae"
+git clone https://github.com/QiuSimons/luci-app-dae feeds/luci/applications/luci-app-dae
 
 # Daed
 git clone --depth=1 https://github.com/kenzok8/openwrt-honk.git package/custom/daed-honk
 # git clone --depth=1 https://github.com/QiuSimons/luci-app-honk.git package/custom/daed-honk
 # git clone --depth=1 https://github.com/breeze303/openwrt-honk.git package/custom/daed-honk
-git clone --depth=1 https://github.com/kenzok8/openwrt-daede.git package/custom/daede
+#git clone --depth=1 https://github.com/kenzok8/openwrt-daede.git package/custom/daede
 
 echo "🎉 diy-part1.sh 执行完毕"
