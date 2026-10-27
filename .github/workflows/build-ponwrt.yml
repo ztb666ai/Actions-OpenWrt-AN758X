@@ -533,6 +533,51 @@ jobs:
       #      echo "# CONFIG_PACKAGE_${p} is not set" >> .config
       #    done
 
+    	# =========================================================
+    	# 8.6 代理变体注入：按输入项统一控制 dae / openclash
+    	# 无论 diy-part2.sh 或 configs/*.config 里写了什么代理包行，
+    	# 这里都先剥除再按需追加，保证最终 .config 与输入一致
+    	# =========================================================
+    	- name: Inject proxy variant into .config
+    	  run: |
+    		cd "$BUILD_ROOT/openwrt"
+    		RAW="${{ github.event.inputs.proxy }}"
+    		PROXY=$(echo "$RAW" | tr '[:upper:]' '[:lower:]' | xargs)
+    		case "$PROXY" in
+    		  openclash) VARIANT="openclash" ;;
+    		  dae)       VARIANT="dae" ;;
+    		  "")        VARIANT="bare" ;;
+    		  *) echo "::error::proxy 只支持 openclash / dae / 留空，收到: '$RAW'"; exit 1 ;;
+    		esac
+    		echo "PROXY_VARIANT=$VARIANT" >> "$GITHUB_ENV"
+    
+    		# dae 家族 + openclash 家族全部幂等剥除（含 =y 和 is not set 两种形态）
+    		DAE_PKGS="dae daed daed-router honk luci-app-dae luci-app-daed luci-app-daede luci-app-daed-router luci-app-honk"
+    		OC_PKGS="openclash luci-app-openclash"
+    		for p in $DAE_PKGS $OC_PKGS; do
+    		  sed -i -e "/^CONFIG_PACKAGE_${p}=/d" \
+    				 -e "/^# CONFIG_PACKAGE_${p} is not set\$/d" .config
+    		done
+    
+    		case "$VARIANT" in
+    		  openclash)
+    			echo 'CONFIG_PACKAGE_luci-app-openclash=y' >> .config
+    			;;
+    		  dae)
+    			echo 'CONFIG_PACKAGE_luci-app-dae=y' >> .config
+    			# dae 依赖 eBPF/BTF 内核特性，airoha kernel 6.18 默认应已含，
+    			# 这里显式声明防止被裁剪（缺 BTF 会导致 dae 启动失败）
+    			grep -q '^CONFIG_KERNEL_DEBUG_INFO_BTF=y' .config || \
+    			  echo 'CONFIG_KERNEL_DEBUG_INFO_BTF=y' >> .config
+    			;;
+    		  bare)
+    			for p in $DAE_PKGS $OC_PKGS; do
+    			  echo "# CONFIG_PACKAGE_${p} is not set" >> .config
+    			done
+    			;;
+    		esac
+    		echo "✅ 代理变体注入完成: $VARIANT"
+
 
       # =========================================================
       # 9. defconfig + 生成工具链缓存 Key + 校验机型
