@@ -364,7 +364,7 @@ CONFIG_PACKAGE_vim-fuller=y
 #CONFIG_PACKAGE_luci-app-dae=y
 #CONFIG_PACKAGE_luci-app-honk=y
 CONFIG_PACKAGE_luci-app-openclash=y
-#CONFIG_PACKAGE_luci-compat=y #for openclash
+CONFIG_PACKAGE_luci-compat=y #for openclash
 # --- 基础工具 ---
 CONFIG_PACKAGE_curl=y
 CONFIG_PACKAGE_bash=y
