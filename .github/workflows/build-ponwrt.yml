@@ -78,6 +78,16 @@ on:
           - nokia_xg-040g-mf
           - nokia_xg-040g-mf-ubi
           - all
+      proxy:
+        description: '代理插件变体 (openclash / dae / 留空=都不装)'
+        required: false
+        default: ''
+        type: choice
+        options:
+          - ''
+          - openclash
+          - dae
+
       scope:
         description: '构建范围 (toolchain-only 仅预热工具链缓存)'
         required: true
