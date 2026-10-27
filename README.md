@@ -1,7 +1,11 @@
 # ZtbWrt CI — Airoha AN758x PON 云编译
 
 基于 P3TERX `Actions-OpenWrt` 模板重构，源码指向 [pbs05/ponwrt](https://github.com/pbs05/ponwrt)（默认分支 `master`），
-针对 AN7581 / AN7583 PON 光猫做机型选择、磁盘释放与工具链缓存。
+> 固件免费开源分享。如果帮你省了事、省了心，欢迎扫码支持一下 ☕ —— 您的每一份心意，都是本ID继续编译、持续更新的动力
+>
+> <img src="docs/donate.png" alt="赞赏码" width="240"/>
+
+---
 
 ### diy-part1.sh —— 拉插件
 
