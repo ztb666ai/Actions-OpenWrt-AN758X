@@ -949,6 +949,38 @@ jobs:
         with:
           name: OpenWrt_firmware_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
           path: ${{ env.FIRMWARE }}
+      
+      # =========================================================
+      # 21.5 依据 manifest 识别固件变体（dae / openclash / bare）
+      # =========================================================
+      - name: Detect firmware variant
+        id: variant
+        if: env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success'
+        run: |
+          cd "$BUILD_ROOT"/openwrt/bin/targets/*/*
+          MANIFEST=$(ls *.manifest 2>/dev/null | head -1)
+          if [ -z "$MANIFEST" ]; then
+            echo "::error::未找到 .manifest 文件，无法判定变体"
+            exit 1
+          fi
+          echo "---- manifest 里与代理相关的包 ----"
+          grep -E '(^luci-app-|^dae|^daed|^honk|^openclash|^clash)' "$MANIFEST" || echo "(无)"
+          # dae 家族：dae / daed / daed-router / honk 及其 luci 管理端
+          DAE_RE='(^dae$|^daed$|^daed-router$|^honk$|^luci-app-dae$|^luci-app-daed$|^luci-app-daede$|^luci-app-daed-router$|^luci-app-honk$)'
+          # OpenClash 家族
+          OC_RE='(^openclash$|^luci-app-openclash$)'
+      
+          if grep -Eq "$DAE_RE" "$MANIFEST" && grep -Eq "$OC_RE" "$MANIFEST"; then
+            VARIANT="combo"        # 理论上不应同时装，防呆
+          elif grep -Eq "$DAE_RE" "$MANIFEST"; then
+            VARIANT="dae"
+          elif grep -Eq "$OC_RE" "$MANIFEST"; then
+            VARIANT="openclash"
+          else
+            VARIANT="bare"
+          fi
+          echo "判定结果: $VARIANT"
+          echo "variant=$VARIANT" >> "$GITHUB_OUTPUT"
 
       # =========================================================
       # 22. 生成 Release 说明
@@ -966,7 +998,8 @@ jobs:
           # 固定 tag：机型 + 分支，不含时间戳、不含作者
           # 同一机型/分支再次编译时，softprops/action-gh-release 会更新
           # 这个已存在的 Release（同名固件自动覆盖），不会新建版本。
-          RELEASE_TAG=$(echo "${DEVICE_NAME}-${REPO_BRANCH}" | sed 's/[^a-zA-Z0-9._-]/-/g')
+          #RELEASE_TAG=$(echo "${DEVICE_NAME}-${REPO_BRANCH}" | sed 's/[^a-zA-Z0-9._-]/-/g')
+          RELEASE_TAG=$(echo "${DEVICE_NAME}-${REPO_BRANCH}-${{ steps.variant.outputs.variant }}" | sed 's/[^a-zA-Z0-9._-]/-/g')
           echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
 
           touch release.txt
@@ -983,6 +1016,7 @@ jobs:
             echo "| 分支 | \`${REPO_BRANCH}\` |"
             echo "| 提交 | \`$(cd "$BUILD_ROOT"/openwrt && git rev-parse --short HEAD)\` |"
             echo "| 编译时间 | $(date '+%Y-%m-%d %H:%M:%S') (Shanghai) |"
+            echo "| 变体 | \`${{ steps.variant.outputs.variant }}\` |"
             echo ""
             echo "### 固件文件校验"
             echo '```'
