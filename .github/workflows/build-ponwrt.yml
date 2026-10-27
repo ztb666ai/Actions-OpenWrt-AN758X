@@ -293,6 +293,7 @@ jobs:
           CONFIG_CRYPTO_USER_API_AEAD=y
           CONFIG_CRYPTO_USER_API_HASH=y
           CONFIG_CRYPTO_USER_API_SKCIPHER=y
+          CONFIG_TCP_CONG_BBR1=m
           EOF
       
           # 校验：16 条全到位才放行，防止静默丢行导致编完才发现没开硬件 AES
