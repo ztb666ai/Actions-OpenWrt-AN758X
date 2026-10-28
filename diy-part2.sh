@@ -1,7 +1,7 @@
 #!/bin/bash
 # ================================================================
 # diy-part.sh (for no WIFI) —— 默认值定制（.config 加载之后、defconfig 之前运行）
-# 运行目录: ponwrt 源码根目录（由 build-ponwrt.yml 步骤 8 cd 进来调用）
+# build-ponwrt.yml 步骤 8 cd 进来调用
 #
 # 功能清单：
 #   [7.7]  USB 自动挂载到 /opt（mount-opt + hotplug + uci-defaults）
@@ -10,8 +10,6 @@
 #   [10.5] uci-defaults 强制中国时区（保配置升级也生效）
 #   原有:  zoneinfo-asia / 固件版本后缀 / 自定义包开关
 #
-# ⚠ 本脚本不做 make defconfig —— defconfig 由 build-ponwrt.yml 步骤 9
-#   统一执行（唯一一次），这里只写好 .config 和 files/ overlay。
 # ================================================================
 set -euo pipefail
 
