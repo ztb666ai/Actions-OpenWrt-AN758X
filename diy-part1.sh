@@ -211,8 +211,8 @@ clone https://github.com/QiuSimons/luci-app-dae    feeds/luci/applications/luci-
 clone https://github.com/vernesong/OpenClash  feeds/luci/applications/luci-app-openclash
 # honk 是容器仓库，含 honk + luci-app-honk 两个包，必须放到 package/custom 下
 #clone https://github.com/kenzok8/openwrt-honk.git  feeds/luci/applications/luci-app-honk  "" --depth=1
-#clone https://github.com/kenzok8/openwrt-honk.git  "$PKG_DIR/honk"  "" --depth=1
-clone https://github.com/QiuSimons/luci-app-honk.git  feeds/luci/applications/luci-app-honk  "" --depth=1
+clone https://github.com/kenzok8/openwrt-honk.git  "$PKG_DIR/honk"  "" --depth=1
+#clone https://github.com/QiuSimons/luci-app-honk.git  feeds/luci/applications/luci-app-honk  "" --depth=1
 
 # ------------------------------------------------------------------
 # honk 仓库的 Makefile 把 PKG_HASH 写成大写 SKIP 占位，
@@ -235,6 +235,47 @@ if [ -d "$PKG_DIR/honk" ]; then
   log "  ✅ honk Makefile 哈希占位修正: ${honk_patched} 处"
 fi
 endgroup
+
+# ================================================================
+# honk-core pin：kenzok8 上游 Makefile 的 CORE_COMMIT 偶尔会领先
+# staging release（CI race），导致下载 404。这里把 commit pin 到
+# 已验证存在 + 哈希已知的版本，同时写入 generated-stage.mk。
+# 上游 CI 恢复后可以按需更新下面三个常量。
+# ================================================================
+group "Pin honk-core commit 并写 generated-stage.mk"
+if [ "$ADD_HONK" = "true" ]; then
+  HONK_CORE_DIR="$PKG_DIR/openwrt-honk/honk"   # 按你的实际路径改
+  # 如果你克隆后的目录是 package/custom/honk，就改成：
+  # HONK_CORE_DIR="$PKG_DIR/honk/honk"
+
+  if [ -d "$HONK_CORE_DIR" ]; then
+    # pin 到 staging release 里真实存在的版本
+    sed -i 's|^CORE_COMMIT:=.*|CORE_COMMIT:=eac5e0c5fba5078a7ff4517a3e3851e7fa0f4f8e|' \
+      "$HONK_CORE_DIR/Makefile"
+
+    # 写 generated-stage.mk（SHA256 来自 GitHub API 的 digest 字段，与资产一一对应）
+    cat > "$HONK_CORE_DIR/generated-stage.mk" <<'EOF'
+HONK_HASH_X86_64:=1847137dfd8d9d57e2c191439ba1a56cec722cd71379ebdf3d4ff5d633e54873
+HONK_HASH_AARCH64:=33acdc1b62678e61842c9e09dee3683e2d519d5f301ae62c161e82f2c9a936cb
+HONK_HASH_ARMV7:=c5f5cde9790fb4e4702e95cf312d5d7ad8dabd683bd59dcc0180fbe41522b313
+EOF
+
+    # 顺带预置 dl/，让 make download 直接命中（USE_DL_CACHE 周缓存也会存住）
+    COMMIT=eac5e0c5fba5078a7ff4517a3e3851e7fa0f4f8e
+    mkdir -p dl
+    for arch in aarch64 x86_64 armv7; do
+      asset="honk-core-${COMMIT}-${arch}.tar.gz"
+      [ -s "dl/${asset}" ] || curl -fsSL --retry 3 \
+        -o "dl/${asset}" \
+        "https://github.com/kenzok8/openwrt-honk/releases/download/staging/${asset}"
+    done
+    log "  ✅ honk-core 已 pin 到 ${COMMIT:0:8}，generated-stage.mk 与 dl/ 已就绪"
+  else
+    echo "::warning::$HONK_CORE_DIR 不存在，跳过 honk-core pin"
+  fi
+fi
+endgroup
+
 
 # ================================================================
 # 输出 GitHub Step Summary，Actions 页面直接看结果
