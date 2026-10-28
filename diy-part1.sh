@@ -212,7 +212,24 @@ clone https://github.com/vernesong/OpenClash  feeds/luci/applications/luci-app-o
 # honk 是容器仓库，含 honk + luci-app-honk 两个包，必须放到 package/custom 下
 #clone https://github.com/kenzok8/openwrt-honk.git  feeds/luci/applications/luci-app-honk  "" --depth=1
 clone https://github.com/kenzok8/openwrt-honk.git  "$PKG_DIR/honk"  "" --depth=1
-
+# ------------------------------------------------------------------
+# honk 仓库的 Makefile 把 PKG_HASH 写成大写 SKIP 占位，
+# OpenWrt scripts/download.pl 只识别小写 skip 跳过校验；
+# 大写 SKIP 会触发 "Cannot find appropriate hash command ..."。
+# 这里把 PKG_HASH / PKG_MIRROR_HASH 的纯 SKIP 占位统一改成 skip。
+# 只匹配纯占位行，不会误伤真实哈希。
+# ------------------------------------------------------------------
+if [ -d "$PKG_DIR/honk" ]; then
+  honk_patched=0
+  while IFS= read -r -d '' mkfile; do
+    if grep -qE '^[[:space:]]*PKG_(HASH|MIRROR_HASH)[[:space:]]*:?=[[:space:]]*SKIP[[:space:]]*$' "$mkfile"; then
+      sed -i -E 's/^([[:space:]]*PKG_(HASH|MIRROR_HASH)[[:space:]]*:?=[[:space:]]*)SKIP[[:space:]]*$/\1skip/' "$mkfile"
+      log "  ✏ 修正 $(basename "$(dirname "$mkfile")")/Makefile：PKG_*HASH SKIP → skip"
+      honk_patched=$((honk_patched + 1))
+    fi
+  done < <(find "$PKG_DIR/honk" -type f -name Makefile -print0)
+  log "  ✅ honk Makefile 哈希占位修正: ${honk_patched} 处"
+fi
 endgroup
 
 # ================================================================
