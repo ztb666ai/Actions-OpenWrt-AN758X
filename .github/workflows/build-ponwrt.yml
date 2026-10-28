@@ -948,6 +948,9 @@ jobs:
           echo "=== Purging stale Go module caches ==="
           rm -rf dl/go-mod-cache
           rm -f build_dir/target-aarch64_cortex-a53_musl/ddns-go-*./built
+          # honk 的下载包：diy-part1.sh 已把 PKG_HASH 从 SKIP 改成 skip，
+          # 这里清掉历史残留，保证这次走干净下载 （这行只是兜底，不加也能跑通。）
+          rm -f dl/honk-core-*.tar.gz
           
           for i in 1 2 3; do
             echo "===== 第 $i 次尝试: make download ====="
