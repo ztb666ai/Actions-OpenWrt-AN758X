@@ -201,10 +201,13 @@ endgroup
 # ================================================================
 # 覆盖 feeds/luci 中自带的 dae / honk /openclash
 # ================================================================
-group "覆盖 feeds/luci 中的 dae / honk"
+group "覆盖 feeds/luci 中的 dae / openclash，并将 honk 放入 package/custom"
 clone https://github.com/QiuSimons/luci-app-dae    feeds/luci/applications/luci-app-dae
 clone https://github.com/vernesong/OpenClash  feeds/luci/applications/luci-app-openclash
-clone https://github.com/kenzok8/openwrt-honk.git  feeds/luci/applications/luci-app-honk  "" --depth=1
+
+# honk 是容器仓库，含 honk + luci-app-honk 两个包，必须放到 package/custom 下
+#clone https://github.com/kenzok8/openwrt-honk.git  feeds/luci/applications/luci-app-honk  "" --depth=1
+clone https://github.com/kenzok8/openwrt-honk.git  "$PKG_DIR/honk"  "" --depth=1
 endgroup
 
 # ================================================================
