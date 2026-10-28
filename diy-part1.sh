@@ -219,6 +219,8 @@ clone https://github.com/kenzok8/openwrt-honk.git  "$PKG_DIR/honk"  "" --depth=1
 # 这里把 PKG_HASH / PKG_MIRROR_HASH 的纯 SKIP 占位统一改成 skip。
 # 只匹配纯占位行，不会误伤真实哈希。
 # ------------------------------------------------------------------
+sed -i 's/?=SKIP$/?=skip/' "$PKG_DIR/honk/honk/Makefile"
+
 if [ -d "$PKG_DIR/honk" ]; then
   honk_patched=0
   while IFS= read -r -d '' mkfile; do
