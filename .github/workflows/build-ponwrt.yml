@@ -519,7 +519,7 @@ jobs:
             "$GITHUB_WORKSPACE/$DIY_P2_SH"
 
       # =========================================================
-      # 8.6 代理变体注入（新增）：按 workflow_dispatch 输入统一控制 dae / openclash
+      # 8.6 代理变体注入：按 workflow_dispatch 输入统一控制 dae / openclash / honk
       # 无论 diy-part2.sh / configs/*.config 里写了什么代理包行，
       # 这里都先剥除再按需追加，保证最终 .config 与输入一致
       # =========================================================
@@ -532,15 +532,18 @@ jobs:
           case "$PROXY" in
             openclash) VARIANT="openclash" ;;
             dae)       VARIANT="dae" ;;
+            honk)      VARIANT="honk" ;;
             "")        VARIANT="bare" ;;
-            *) echo "::error::proxy 只支持 openclash / dae / 留空，收到: '$PROXY_RAW'"; exit 1 ;;
+            *) echo "::error::proxy 只支持 openclash / dae / honk / 留空，收到: '$PROXY_RAW'"; exit 1 ;;
           esac
           echo "PROXY_VARIANT=$VARIANT" >> "$GITHUB_ENV"
 
-          # dae 家族 + openclash 家族全部幂等剥除（=y 与 is not set 两种形态都清）
-          DAE_PKGS="dae daed daed-router honk luci-app-dae luci-app-daed luci-app-daede luci-app-daed-router luci-app-honk"
+          # 三个家族全部幂等剥除（=y 与 is not set 两种形态都清）
+          # honk 独立成族：与 dae/daed 无依赖关系，互斥安装
+          DAE_PKGS="dae daed daed-router luci-app-dae luci-app-daed luci-app-daede luci-app-daed-router"
+          HONK_PKGS="honk luci-app-honk"
           OC_PKGS="openclash luci-app-openclash"
-          for p in $DAE_PKGS $OC_PKGS; do
+          for p in $DAE_PKGS $HONK_PKGS $OC_PKGS; do
             sed -i -e "/^CONFIG_PACKAGE_${p}=/d" \
                    -e "/^# CONFIG_PACKAGE_${p} is not set\$/d" .config
           done
@@ -554,28 +557,21 @@ jobs:
               grep -q '^CONFIG_KERNEL_DEBUG_INFO_BTF=y' .config || \
                 echo 'CONFIG_KERNEL_DEBUG_INFO_BTF=y' >> .config
               ;;
+            honk)
+              echo 'CONFIG_PACKAGE_honk=y' >> .config
+              echo 'CONFIG_PACKAGE_luci-app-honk=y' >> .config
+              echo 'CONFIG_PACKAGE_v2ray-geoip=y' >> .config
+              echo 'CONFIG_PACKAGE_v2ray-geosite=y' >> .config
+              grep -q '^CONFIG_KERNEL_DEBUG_INFO_BTF=y' .config || \
+                echo 'CONFIG_KERNEL_DEBUG_INFO_BTF=y' >> .config
+              ;;
             bare)
-              for p in $DAE_PKGS $OC_PKGS; do
+              for p in $DAE_PKGS $HONK_PKGS $OC_PKGS; do
                 echo "# CONFIG_PACKAGE_${p} is not set" >> .config
               done
               ;;
           esac
           echo "✅ 代理变体注入完成: $VARIANT"
-
-      # =========================================================
-      # 8.5 从固件中去掉不想编译的包（示例：zh-cn 中文翻译包）
-      # ⚠ 必须放在步骤 9 的 make defconfig 之前（全流程唯一一次 defconfig）
-      # =========================================================          
-      #- name: Remove unwanted packages (generic)
-      #  run: |
-      #    cd "$BUILD_ROOT/openwrt"
-      #    # 空格分隔；注意别删被其他已选包依赖的包（会编译报错或被静默拉回）
-      #    REMOVE_PKGS="luci-app-xxx kmod-yyy"
-      #    for p in $REMOVE_PKGS; do
-      #      sed -i -e "/^CONFIG_PACKAGE_${p}=/d" \
-      #             -e "/^# CONFIG_PACKAGE_${p} is not set$/d" .config
-      #      echo "# CONFIG_PACKAGE_${p} is not set" >> .config
-      #    done
 
       # =========================================================
       # 9. defconfig + 生成工具链缓存 Key + 校验机型
@@ -668,6 +664,36 @@ jobs:
           echo "缓存 Key  : $CACHE_KEY"
           echo "缓存前缀  : $CACHE_PREFIX"
           echo "========================================"
+    
+      # =========================================================
+      # 9.1 代理变体核心包校验：defconfig 会把 feeds 里不存在的包静默剔除，
+      #     若 diy-part1.sh 未拉到 honk / dae 对应源，tag 会挂成错误变体。
+      #     这里在 defconfig 之后显式拦截。
+      # =========================================================
+      - name: Verify proxy variant core packages
+        if: env.BUILD_SCOPE != 'toolchain-only'
+        run: |
+          cd "$BUILD_ROOT/openwrt"
+          case "$PROXY_VARIANT" in
+            openclash) CORE_PKGS="luci-app-openclash" ;;
+            dae)       CORE_PKGS="dae luci-app-dae" ;;
+            honk)      CORE_PKGS="honk luci-app-honk v2ray-geoip v2ray-geosite" ;;
+            *)         CORE_PKGS="" ;;
+          esac
+          if [ -z "$CORE_PKGS" ]; then
+            echo "bare 变体无需校验"
+            exit 0
+          fi
+          MISS=""
+          for p in $CORE_PKGS; do
+            grep -q "^CONFIG_PACKAGE_${p}=y" .config || MISS="$MISS $p"
+          done
+          if [ -n "$MISS" ]; then
+            echo "::error::以下变体核心包在 defconfig 后缺失:$MISS"
+            echo "        可能原因: diy-part1.sh 未拉取该变体所在的 feed"
+            exit 1
+          fi
+          echo "✅ 代理变体核心包校验通过: $CORE_PKGS"
 
       # =========================================================
       # 9.5 下载工具链源码 —— 必须在编工具链之前
@@ -1002,9 +1028,11 @@ jobs:
         with:
           name: OpenWrt_firmware_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
           path: ${{ env.FIRMWARE }}
-      
+     
       # =========================================================
-      # 21.5 依据 manifest 识别固件变体（dae / openclash / bare）
+      # 21.5 依据 manifest 识别固件变体
+      #   honk 独立成族，判定顺序必须是 honk → dae → openclash → bare，
+      #   防止 honk 被误判为 dae 家族。
       # =========================================================
       - name: Detect firmware variant
         id: variant
@@ -1016,15 +1044,21 @@ jobs:
             echo "::error::未找到 .manifest 文件，无法判定变体"
             exit 1
           fi
+
           echo "---- manifest 里与代理相关的包 ----"
           grep -E '(^luci-app-|^dae|^daed|^honk|^openclash|^clash)' "$MANIFEST" || echo "(无)"
-          # dae 家族：dae / daed / daed-router / honk 及其 luci 管理端
-          DAE_RE='(^dae$|^daed$|^daed-router$|^honk$|^luci-app-dae$|^luci-app-daed$|^luci-app-daede$|^luci-app-daed-router$|^luci-app-honk$)'
+
+          # dae 家族：dae / daed / daed-router 及其 luci 管理端（不含 honk）
+          DAE_RE='(^dae$|^daed$|^daed-router$|^luci-app-dae$|^luci-app-daed$|^luci-app-daede$|^luci-app-daed-router$)'
+          # honk 家族：独立 eBPF 核心 + LuCI 前端
+          HONK_RE='(^honk$|^luci-app-honk$)'
           # OpenClash 家族
           OC_RE='(^openclash$|^luci-app-openclash$)'
-      
+
           if grep -Eq "$DAE_RE" "$MANIFEST" && grep -Eq "$OC_RE" "$MANIFEST"; then
-            VARIANT="combo"        # 理论上不应同时装，防呆
+            VARIANT="combo"
+          elif grep -Eq "$HONK_RE" "$MANIFEST"; then
+            VARIANT="honk"
           elif grep -Eq "$DAE_RE" "$MANIFEST"; then
             VARIANT="dae"
           elif grep -Eq "$OC_RE" "$MANIFEST"; then
@@ -1032,6 +1066,7 @@ jobs:
           else
             VARIANT="bare"
           fi
+
           echo "判定结果: $VARIANT"
           echo "variant=$VARIANT" >> "$GITHUB_OUTPUT"
 
