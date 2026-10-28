@@ -1031,8 +1031,11 @@ jobs:
      
       # =========================================================
       # 21.5 依据 manifest 识别固件变体
-      #   honk 独立成族，判定顺序必须是 honk → dae → openclash → bare，
-      #   防止 honk 被误判为 dae 家族。
+      #   按 release 分档要求把代理划分为三类：
+      #     1) openclash  —— 只装了 openclash（含意外 combo 也归入此类）
+      #     2) dae-honk   —— 只装了 dae / honk（eBPF 类，二者合为一档）
+      #     3) bare       —— 两种都没装
+      #   判定顺序固定为 openclash → dae-honk → bare。
       # =========================================================
       - name: Detect firmware variant
         id: variant
@@ -1055,23 +1058,32 @@ jobs:
           # OpenClash 家族
           OC_RE='(^openclash$|^luci-app-openclash$)'
 
+          # 三类归档：openclash / dae-honk / bare
+          # 输入是互斥单选项，正常不会出现 combo；出现时归入 openclash 并告警。
           if grep -Eq "$DAE_RE" "$MANIFEST" && grep -Eq "$OC_RE" "$MANIFEST"; then
-            VARIANT="combo"
-          elif grep -Eq "$HONK_RE" "$MANIFEST"; then
-            VARIANT="honk"
-          elif grep -Eq "$DAE_RE" "$MANIFEST"; then
-            VARIANT="dae"
+            echo "::warning::检测到 combo（openclash + dae/honk），按 openclash 类归档"
+            VARIANT="openclash"
+            VARIANT_DESC="OpenClash"
           elif grep -Eq "$OC_RE" "$MANIFEST"; then
             VARIANT="openclash"
+            VARIANT_DESC="OpenClash"
+          elif grep -Eq "$DAE_RE" "$MANIFEST" || grep -Eq "$HONK_RE" "$MANIFEST"; then
+            VARIANT="dae-honk"
+            VARIANT_DESC="eBPF (dae / honk)"
           else
             VARIANT="bare"
+            VARIANT_DESC="bare (无代理)"
           fi
 
-          echo "判定结果: $VARIANT"
-          echo "variant=$VARIANT" >> "$GITHUB_OUTPUT"
+          echo "判定结果: $VARIANT ($VARIANT_DESC)"
+          echo "variant=$VARIANT"           >> "$GITHUB_OUTPUT"
+          echo "variant_desc=$VARIANT_DESC" >> "$GITHUB_OUTPUT"
 
       # =========================================================
       # 22. 生成 Release 说明
+      #   发布策略：每个 (机型 + 分支 + 代理类型) 组合只保留一个 Release，
+      #   tag 固定不含时间戳，下次同组合构建会自动覆盖同名资产。
+      #   代理类型只分三档：openclash / dae-honk / bare。
       # =========================================================
       - name: Generate release tag
         id: tag
@@ -1083,10 +1095,10 @@ jobs:
             exit 0
           fi
 
-          # 固定 tag：机型 + 分支，不含时间戳、不含作者
-          # 同一机型/分支再次编译时，softprops/action-gh-release 会更新
+          # 固定 tag：机型 + 分支 + 代理类型
+          # 同一组合再次编译时，softprops/action-gh-release 会更新
           # 这个已存在的 Release（同名固件自动覆盖），不会新建版本。
-          #RELEASE_TAG=$(echo "${DEVICE_NAME}-${REPO_BRANCH}" | sed 's/[^a-zA-Z0-9._-]/-/g')
+          # 代理类型只有三种：openclash / dae-honk / bare。
           RELEASE_TAG=$(echo "${DEVICE_NAME}-${REPO_BRANCH}-${{ steps.variant.outputs.variant }}" | sed 's/[^a-zA-Z0-9._-]/-/g')
           echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
 
@@ -1104,7 +1116,7 @@ jobs:
             echo "| 分支 | \`${REPO_BRANCH}\` |"
             echo "| 提交 | \`$(cd "$BUILD_ROOT"/openwrt && git rev-parse --short HEAD)\` |"
             echo "| 编译时间 | $(date '+%Y-%m-%d %H:%M:%S') (Shanghai) |"
-            echo "| 变体 | \`${{ steps.variant.outputs.variant }}\` |"
+            echo "| 变体 | \`${{ steps.variant.outputs.variant }}\` (${{ steps.variant.outputs.variant_desc }}) |"
             echo ""
             echo "### 固件文件校验"
             echo '```'
@@ -1112,7 +1124,7 @@ jobs:
             echo '```'
             echo ""
             echo "---"
-            echo "> 本 Release 为滚动发布页，仅保留最新一次编译产物。"
+            echo "> 本 Release 按代理类型分档（openclash / dae-honk / bare），同一档位仅保留最新一次编译产物。"
             echo "> 安装前请用 AN758x-Stock2UBI 备份原厂 flash，刷机后恢复 PON/校准数据。"
           } >> release.txt
           echo "status=success" >> "$GITHUB_OUTPUT"
@@ -1125,7 +1137,9 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.release_tag }}
           body_path: release.txt
-          make_latest: true
+          # 三种代理类型是并行的独立 Release，不互相抢 latest 标记。
+          # 需要哪个变体，请到 Releases 页面按 tag 名称（后缀 openclash / dae-honk / bare）选择。
+          make_latest: false
           # 不同机型产物后缀不同，缺哪种都别让这一步失败
           fail_on_unmatched_files: false
           files: |
@@ -1143,6 +1157,7 @@ jobs:
       # =========================================================
       # 23. 清理旧记录
       #     仅清理「已上传成功」的运行；失败的运行保留日志便于排错。
+      #     keep_latest 已从 10 提高到 30，以容纳 10 机型 × 3 个代理变体。
       # =========================================================
       - name: Delete workflow runs
         if: steps.compile.outputs.status == 'success'
@@ -1156,7 +1171,9 @@ jobs:
         uses: dev-drprasad/delete-older-releases@v0.3.4
         if: env.UPLOAD_RELEASE == 'true' && !cancelled()
         with:
-          keep_latest: 10
+          # 每个机型最多会占 3 个变体 Release（openclash / dae-honk / bare），
+          # 给到 30 可以覆盖约 10 个机型；如机型更多请自行上调。
+          keep_latest: 30
           delete_tags: true
           delete_tag_pattern: '^${{ env.DEVICE_NAME }}-'
         env:
