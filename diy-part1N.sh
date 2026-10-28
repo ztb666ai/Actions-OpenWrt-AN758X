@@ -7,8 +7,7 @@
 #      把对应 "# CONFIG_PACKAGE_xxx is not set" 改成 "=y"
 #
 # 温度由 autocore 的 /sbin/tempinfo 提供（files/sbin/tempinfo），
-# 概览页「温度」行：CPU / WiFi / PON 温度 + 光功率
-# ================================================================
+# # ================================================================
 
 # 严格模式 + pipefail，任何命令失败都立即退出
 set -Eeuo pipefail
@@ -200,10 +199,11 @@ log "  ✅ 必装插件全部就绪: ${CRITICAL_PKGS[*]}"
 endgroup
 
 # ================================================================
-# 覆盖 feeds/luci 中自带的 dae / honk
+# 覆盖 feeds/luci 中自带的 dae / honk /openclash
 # ================================================================
 group "覆盖 feeds/luci 中的 dae / honk"
 clone https://github.com/QiuSimons/luci-app-dae    feeds/luci/applications/luci-app-dae
+clone https://github.com/vernesong/OpenClash  feeds/luci/applications/luci-app-openclash
 clone https://github.com/kenzok8/openwrt-honk.git  feeds/luci/applications/luci-app-honk  "" --depth=1
 endgroup
 
