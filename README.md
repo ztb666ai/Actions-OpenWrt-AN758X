@@ -7,19 +7,12 @@
 
 ---
 
-### diy-part1.sh —— 拉插件
-
 ## 支持的机型
 
 | SoC | profile |
 |-----|---------|
 | AN7581 | `fiberhome_hg5382a` `fiberhome_hg5585f-ct` `fiberhome_hg5585f-cu` `gemtek_xg2010g` `nokia_xg-040g-md-ubi` `nokia_xg-040g-tf-ubi` `unionman_ung00a` `znxt_zn504xg-d` `znxt_zn515xg-d` |
 | AN7583 | `nokia_xg-040g-mf` `nokia_xg-040g-mf-ubi` |
-
-机型名写错会在 `Generate toolchain cache key` 步骤直接报 `::error::` 并退出，不会静默地全机型编译。
-
-### diy-part2.sh —— 自定义一些参数软件包
-
 
 ## Release 4 个变体
 
