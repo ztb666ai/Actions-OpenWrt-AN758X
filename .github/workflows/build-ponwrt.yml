@@ -1085,7 +1085,7 @@ jobs:
       # 22. 生成 Release 说明
       #   发布策略：每个 (机型 + 分支 + 代理类型) 组合只保留一个 Release，
       #   tag 固定不含时间戳，下次同组合构建会自动覆盖同名资产。
-      #   代理类型只分三档：openclash / dae-honk / bare。
+      #   代理类型只分四档：openclash / dae / honk / bare。
       # =========================================================
       - name: Generate release tag
         id: tag
@@ -1097,10 +1097,8 @@ jobs:
             exit 0
           fi
 
-          # 固定 tag：机型 + 分支 + 代理类型
-          # 同一组合再次编译时，softprops/action-gh-release 会更新
-          # 这个已存在的 Release（同名固件自动覆盖），不会新建版本。
-          # 代理类型只有三种：openclash / dae-honk / bare。
+          # 固定 tag：机型 + 分支 + 变体（bare / openclash / dae / honk）
+          # 变体已在步骤 21.5 依据 proxy 输入确定，这里直接引用
           RELEASE_TAG=$(echo "${DEVICE_NAME}-${REPO_BRANCH}-${{ steps.variant.outputs.variant }}" | sed 's/[^a-zA-Z0-9._-]/-/g')
           echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
 
@@ -1126,7 +1124,7 @@ jobs:
             echo '```'
             echo ""
             echo "---"
-            echo "> 本 Release 按代理类型分档（openclash / dae-honk / bare），同一档位仅保留最新一次编译产物。"
+            echo "> 本 Release 按代理类型分档（openclash / dae / honk / bare），同一档位仅保留最新一次编译产物。"
             echo "> 安装前请用 AN758x-Stock2UBI 备份原厂 flash，刷机后恢复 PON/校准数据。"
           } >> release.txt
           echo "status=success" >> "$GITHUB_OUTPUT"
