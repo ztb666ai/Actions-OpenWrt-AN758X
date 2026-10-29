@@ -21,7 +21,7 @@
 ### diy-part2.sh —— 自定义一些参数软件包
 
 
-## Release 3 个变体
+## Release 4 个变体
 
 - openclash版
 - dae版
