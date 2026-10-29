@@ -212,8 +212,8 @@ clone https://github.com/vernesong/OpenClash  feeds/luci/applications/luci-app-o
 # honk 是容器仓库，含 honk + luci-app-honk 两个包，必须放到 package/custom 下
 #clone https://github.com/kenzok8/openwrt-honk.git  feeds/luci/applications/luci-app-honk  "" --depth=1
 #clone https://github.com/kenzok8/openwrt-honk.git  "$PKG_DIR/honk"  "" --depth=1
-clone https://github.com/QiuSimons/luci-app-honk.git  feeds/luci/applications/luci-app-honk  "" --depth=1
-
+#clone https://github.com/QiuSimons/luci-app-honk.git  feeds/luci/applications/luci-app-honk  "" --depth=1
+clone https://github.com/QiuSimons/luci-app-honk.git  "$PKG_DIR/honk"  "" --depth=1
 # ------------------------------------------------------------------
 # honk 仓库的 Makefile 把 PKG_HASH 写成大写 SKIP 占位，
 # OpenWrt scripts/download.pl 只识别小写 skip 跳过校验；
