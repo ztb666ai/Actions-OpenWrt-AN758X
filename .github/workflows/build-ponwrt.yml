@@ -1080,12 +1080,18 @@ jobs:
           echo "判定结果: $VARIANT ($VARIANT_DESC)   [来源: Proxy 输入]"
           echo "variant=$VARIANT" >> "$GITHUB_OUTPUT"
           echo "variant_desc=$VARIANT_DESC" >> "$GITHUB_OUTPUT"
-
+     
       # =========================================================
       # 22. 生成 Release 说明
-      #   发布策略：每个 (机型 + 分支 + 代理类型) 组合只保留一个 Release，
-      #   tag 固定不含时间戳，下次同组合构建会自动覆盖同名资产。
-      #   代理类型只分四档：openclash / dae / honk / bare。
+      # 发布策略：变体由 workflow_dispatch 的 proxy 输入决定，共 4 档：
+      #   proxy=''          -> bare       （不装代理）
+      #   proxy=openclash   -> openclash
+      #   proxy=dae         -> dae
+      #   proxy=honk        -> honk
+      # 每个 (机型 + 分支 + 变体) 组合对应一个固定 tag，只保留一个 Release；
+      # 同一组合重新 build 直接覆盖旧固件，不新建 Release。
+      # 注意：release.txt 的代码围栏用 ~~~（GFM 波浪线围栏），
+      # 不要改回三个反引号，否则会在聊天窗口/文档中截断代码块显示。
       # =========================================================
       - name: Generate release tag
         id: tag
@@ -1096,12 +1102,9 @@ jobs:
             echo "::warning::固件目录为空，跳过 Release"
             exit 0
           fi
-
           # 固定 tag：机型 + 分支 + 变体（bare / openclash / dae / honk）
-          # 变体已在步骤 21.5 依据 proxy 输入确定，这里直接引用
           RELEASE_TAG=$(echo "${DEVICE_NAME}-${REPO_BRANCH}-${{ steps.variant.outputs.variant }}" | sed 's/[^a-zA-Z0-9._-]/-/g')
           echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
-
           touch release.txt
           {
             echo "## PonWrt 自动编译固件"
@@ -1116,18 +1119,39 @@ jobs:
             echo "| 分支 | \`${REPO_BRANCH}\` |"
             echo "| 提交 | \`$(cd "$BUILD_ROOT"/openwrt && git rev-parse --short HEAD)\` |"
             echo "| 编译时间 | $(date '+%Y-%m-%d %H:%M:%S') (Shanghai) |"
+            echo "| proxy 输入 | \`${{ github.event.inputs.proxy }}\` |"
             echo "| 变体 | \`${{ steps.variant.outputs.variant }}\` (${{ steps.variant.outputs.variant_desc }}) |"
             echo ""
             echo "### 固件文件校验"
-            echo '```'
+            echo '~~~'
             (cd "$FIRMWARE" && sha256sum * 2>/dev/null | grep -vE "sha256sums|packages")
-            echo '```'
+            echo '~~~'
             echo ""
             echo "---"
-            echo "> 本 Release 按代理类型分档（openclash / dae / honk / bare），同一档位仅保留最新一次编译产物。"
+            echo "> 变体由本次构建的 proxy 输入决定，共 4 档：留空=bare / openclash / dae / honk。"
+            echo "> 同一 (机型 + 分支 + 变体) 每次编译直接覆盖旧固件，tag 恒定，不新建 Release。"
             echo "> 安装前请用 AN758x-Stock2UBI 备份原厂 flash，刷机后恢复 PON/校准数据。"
           } >> release.txt
           echo "status=success" >> "$GITHUB_OUTPUT"
+
+      # =========================================================
+      # 22.1 全量覆盖旧 Release：同 tag 先删后建
+      # 不直接原地覆盖的原因：内核/包升级后固件文件名会变，
+      # action-gh-release 只能替换同名资产，改名后的旧文件会残留累积。
+      # 删掉重建保证 Release 里永远只有本次产物；tag 相同，页面 URL 不变。
+      # =========================================================
+      - name: Reset previous release (same tag, full overwrite)
+        if: env.UPLOAD_RELEASE == 'true' && steps.tag.outputs.status == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.release_tag }}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "发现旧 Release: $TAG -> 删除（含 git tag），下一步用同一 tag 重建"
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
+          else
+            echo "Release $TAG 不存在，将全新创建"
+          fi
 
       - name: Upload firmware to release
         uses: softprops/action-gh-release@v2
@@ -1137,8 +1161,8 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.release_tag }}
           body_path: release.txt
-          # 三种代理类型是并行的独立 Release，不互相抢 latest 标记。
-          # 需要哪个变体，请到 Releases 页面按 tag 名称（后缀 openclash / dae-honk / bare）选择。
+          # 4 个变体是并行的独立 Release，不互抢 latest 标记。
+          # 需要哪个变体，请到 Releases 页面按 tag 后缀（bare / openclash / dae / honk）选择。
           make_latest: false
           # 不同机型产物后缀不同，缺哪种都别让这一步失败
           fail_on_unmatched_files: false
@@ -1156,9 +1180,35 @@ jobs:
 
       # =========================================================
       # 23. 清理旧记录
-      #     仅清理「已上传成功」的运行；失败的运行保留日志便于排错。
-      #     keep_latest 已从 10 提高到 30，以容纳 10 机型 × 3 个代理变体。
+      # Release 清理：精确维持 4 个变体 Release（重复 build 由 22.1 覆盖，不累积）：
+      #   保留 ${DEVICE_NAME}-${REPO_BRANCH}-bare / -openclash / -dae / -honk
+      #   保留 toolchain-cache（步骤 11 的工具链备份，必须保留）
+      # 删除其余全部：历史产物、旧分档 tag（如 dae-honk）、其他机型 Release。
+      # 稳态下全仓库共 5 个 Release（4 变体 + toolchain-cache）。
       # =========================================================
+      - name: Delete old releases (keep 4 variants + toolchain-cache)
+        if: env.UPLOAD_RELEASE == 'true' && steps.tag.outputs.status == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          KEEP="toolchain-cache
+          ${DEVICE_NAME}-${REPO_BRANCH}-bare
+          ${DEVICE_NAME}-${REPO_BRANCH}-openclash
+          ${DEVICE_NAME}-${REPO_BRANCH}-dae
+          ${DEVICE_NAME}-${REPO_BRANCH}-honk"
+          # gh api 列全量 Release tag；循环内 delete 加 </dev/null，
+          # 防止 gh 吃掉 while read 的管道 stdin 导致漏删
+          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --paginate -q '.[].tag_name' \
+          | while read -r tag; do
+              [ -n "$tag" ] || continue
+              if printf '%s\n' "$KEEP" | grep -qxF "$tag"; then
+                echo "保留: $tag"
+              else
+                echo "删除: $tag"
+                gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes </dev/null || true
+              fi
+            done
+
       - name: Delete workflow runs
         if: steps.compile.outputs.status == 'success'
         uses: Mattraks/delete-workflow-runs@v2
@@ -1166,15 +1216,3 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           retain_days: 7
           keep_minimum_runs: 10
-
-      - name: Remove old releases
-        uses: dev-drprasad/delete-older-releases@v0.3.4
-        if: env.UPLOAD_RELEASE == 'true' && !cancelled()
-        with:
-          # 每个机型最多会占 3 个变体 Release（openclash / dae-honk / bare），
-          # 给到 30 可以覆盖约 10 个机型；如机型更多请自行上调。
-          keep_latest: 30
-          delete_tags: true
-          delete_tag_pattern: '^${{ env.DEVICE_NAME }}-'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
