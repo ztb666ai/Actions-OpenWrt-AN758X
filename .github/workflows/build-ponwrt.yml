@@ -1031,55 +1031,54 @@ jobs:
         with:
           name: OpenWrt_firmware_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
           path: ${{ env.FIRMWARE }}
-     
+     	
       # =========================================================
-      # 21.5 依据 manifest 识别固件变体
-      #   按 release 分档要求把代理划分为三类：
-      #     1) openclash  —— 只装了 openclash（含意外 combo 也归入此类）
-      #     2) dae-honk   —— 只装了 dae / honk（eBPF 类，二者合为一档）
-      #     3) bare       —— 两种都没装
-      #   判定顺序固定为 openclash → dae-honk → bare。
-      # =========================================================
+    	# 21.5 固件变体识别 —— 直接依据 workflow_dispatch 的 Proxy 输入
+    	#
+    	# 输入 -> 变体 映射（步骤 8.6 已把归一化结果写入 GITHUB_ENV）：
+    	#   ''          -> bare        （不装任何代理）
+    	#   openclash   -> openclash
+    	#   dae         -> dae
+    	#   honk        -> honk
+    	#
+    	# manifest 只做交叉校验（输入与实际打包一致才放行），不再用来判定变体。
+    	# =========================================================
       - name: Detect firmware variant
         id: variant
         if: env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success'
         run: |
           cd "$BUILD_ROOT"/openwrt/bin/targets/*/*
+          # ---------- 1) 变体名 = Proxy 输入（8.6 步骤已归一化：'' -> bare） ----------
+          VARIANT="${PROXY_VARIANT:-bare}"
+          case "$VARIANT" in
+            openclash) VARIANT_DESC="OpenClash" ;;
+            dae)       VARIANT_DESC="eBPF (dae)" ;;
+            honk)      VARIANT_DESC="eBPF (honk)" ;;
+            bare)      VARIANT_DESC="bare (无代理)" ;;
+            *) echo "::error::未知变体: $VARIANT"; exit 1 ;;
+          esac
+          # ---------- 2) manifest 交叉校验 ----------
           MANIFEST=$(ls *.manifest 2>/dev/null | head -1)
-          if [ -z "$MANIFEST" ]; then
-            echo "::error::未找到 .manifest 文件，无法判定变体"
-            exit 1
+          [ -n "$MANIFEST" ] || { echo "::error::未找到 .manifest 文件，无法交叉校验"; exit 1; }
+          echo "---- manifest 中与代理相关的包 ----"
+          grep -E '^(openclash|luci-app-openclash|dae|daed|daed-router|luci-app-dae|luci-app-daed|luci-app-daede|luci-app-daed-router|honk|luci-app-honk)' "$MANIFEST" || echo "(无)"
+          case "$VARIANT" in
+            openclash) CORE_RE='^(openclash|luci-app-openclash)' ;;
+            dae)       CORE_RE='^(dae|daed|luci-app-dae)' ;;
+            honk)      CORE_RE='^(honk|luci-app-honk)' ;;
+            bare)      CORE_RE='' ;;
+          esac
+          
+          if [ -n "$CORE_RE" ]; then
+            grep -Eq "$CORE_RE" "$MANIFEST" || {
+            echo "::error::变体 $VARIANT 的核心包没有出现在 manifest，请检查步骤 8.6 / diy-part1.sh"
+            }
+            elif grep -Eq '^(openclash|luci-app-openclash|dae|daed|daed-router|luci-app-dae|luci-app-daed|luci-app-daede|luci-app-daed-router|honk|luci-app-honk)' "$MANIFEST"; then
+            echo "::error::Proxy 输入为空，但固件中检测到代理包，与输入不一致"
           fi
-
-          echo "---- manifest 里与代理相关的包 ----"
-          grep -E '(^luci-app-|^dae|^daed|^honk|^openclash|^clash)' "$MANIFEST" || echo "(无)"
-
-          # dae 家族：dae / daed / daed-router 及其 luci 管理端（不含 honk）
-          DAE_RE='(^dae$|^daed$|^daed-router$|^luci-app-dae$|^luci-app-daed$|^luci-app-daede$|^luci-app-daed-router$)'
-          # honk 家族：独立 eBPF 核心 + LuCI 前端
-          HONK_RE='(^honk$|^luci-app-honk$)'
-          # OpenClash 家族
-          OC_RE='(^openclash$|^luci-app-openclash$)'
-
-          # 三类归档：openclash / dae-honk / bare
-          # 输入是互斥单选项，正常不会出现 combo；出现时归入 openclash 并告警。
-          if grep -Eq "$DAE_RE" "$MANIFEST" && grep -Eq "$OC_RE" "$MANIFEST"; then
-            echo "::warning::检测到 combo（openclash + dae/honk），按 openclash 类归档"
-            VARIANT="openclash"
-            VARIANT_DESC="OpenClash"
-          elif grep -Eq "$OC_RE" "$MANIFEST"; then
-            VARIANT="openclash"
-            VARIANT_DESC="OpenClash"
-          elif grep -Eq "$DAE_RE" "$MANIFEST" || grep -Eq "$HONK_RE" "$MANIFEST"; then
-            VARIANT="dae-honk"
-            VARIANT_DESC="eBPF (dae / honk)"
-          else
-            VARIANT="bare"
-            VARIANT_DESC="bare (无代理)"
-          fi
-
-          echo "判定结果: $VARIANT ($VARIANT_DESC)"
-          echo "variant=$VARIANT"           >> "$GITHUB_OUTPUT"
+          
+          echo "判定结果: $VARIANT ($VARIANT_DESC)   [来源: Proxy 输入]"
+          echo "variant=$VARIANT" >> "$GITHUB_OUTPUT"
           echo "variant_desc=$VARIANT_DESC" >> "$GITHUB_OUTPUT"
 
       # =========================================================
