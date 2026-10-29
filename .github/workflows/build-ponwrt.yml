@@ -1048,8 +1048,17 @@ jobs:
         if: env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success'
         run: |
           cd "$BUILD_ROOT"/openwrt/bin/targets/*/*
-          # ---------- 1) 变体名 = Proxy 输入（8.6 步骤已归一化：'' -> bare） ----------
-          VARIANT="${PROXY_VARIANT:-bare}"
+          # ---------- 0) 原始输入审计 ----------
+          echo "本次运行 proxy 原始输入: '${{ github.event.inputs.proxy }}'"
+          echo "8.6 归一化结果 PROXY_VARIANT: '${PROXY_VARIANT:-未定义}'"
+
+          # ---------- 1) PROXY_VARIANT 必须存在，禁止静默兜底 ----------
+          if [ -z "${PROXY_VARIANT:-}" ]; then
+            echo "::error::PROXY_VARIANT 未定义，说明步骤 8.6 未运行（可能用了旧版 workflow）。"
+            echo "        请确认已提交最新版 build-ponwrt.yml 后重跑。"
+            exit 1
+          fi
+          VARIANT="$PROXY_VARIANT"
           case "$VARIANT" in
             openclash) VARIANT_DESC="OpenClash" ;;
             dae)       VARIANT_DESC="eBPF (dae)" ;;
@@ -1057,27 +1066,31 @@ jobs:
             bare)      VARIANT_DESC="bare (无代理)" ;;
             *) echo "::error::未知变体: $VARIANT"; exit 1 ;;
           esac
-          # ---------- 2) manifest 交叉校验 ----------
+
+          # ---------- 2) manifest 交叉校验（不一致 = 硬失败） ----------
           MANIFEST=$(ls *.manifest 2>/dev/null | head -1)
           [ -n "$MANIFEST" ] || { echo "::error::未找到 .manifest 文件，无法交叉校验"; exit 1; }
           echo "---- manifest 中与代理相关的包 ----"
-          grep -E '^(openclash|luci-app-openclash|dae|daed|daed-router|luci-app-dae|luci-app-daed|luci-app-daede|luci-app-daed-router|honk|luci-app-honk)' "$MANIFEST" || echo "(无)"
+          grep -E '^(openclash|luci-app-openclash|dae|daed|daed-router|luci-app-dae|luci-app-daed|luci-app-daede|luci-app-daed-router|honk|honk-core|luci-app-honk)' "$MANIFEST" || echo "(无)"
+
+          ALL_RE='^(openclash|luci-app-openclash|dae|daed|daed-router|luci-app-dae|luci-app-daed|luci-app-daede|luci-app-daed-router|honk|honk-core|luci-app-honk)'
           case "$VARIANT" in
             openclash) CORE_RE='^(openclash|luci-app-openclash)' ;;
             dae)       CORE_RE='^(dae|daed|luci-app-dae)' ;;
-            honk)      CORE_RE='^(honk|luci-app-honk)' ;;
+            honk)      CORE_RE='^(honk|honk-core|luci-app-honk)' ;;
             bare)      CORE_RE='' ;;
           esac
-          
+
           if [ -n "$CORE_RE" ]; then
             grep -Eq "$CORE_RE" "$MANIFEST" || {
-            echo "::error::变体 $VARIANT 的核心包没有出现在 manifest，请检查步骤 8.6 / diy-part1.sh"
+              echo "::error::proxy 输入为 $VARIANT，但 manifest 中找不到其核心包——固件里实际没装上该变体！"
+              echo "        常见原因: diy-part1.sh 未拉取该变体的 feed/源，或依赖缺失被 buildroot 丢弃。"
+              echo "        按要求不发布错误变体，终止。修复 diy-part1.sh 后重跑。"
             }
-            elif grep -Eq '^(openclash|luci-app-openclash|dae|daed|daed-router|luci-app-dae|luci-app-daed|luci-app-daede|luci-app-daed-router|honk|luci-app-honk)' "$MANIFEST"; then
-            echo "::error::Proxy 输入为空，但固件中检测到代理包，与输入不一致"
+          elif grep -Eq "$ALL_RE" "$MANIFEST"; then
+            echo "::error::proxy 输入为空 (bare)，但固件中检测到代理包，与输入不一致，终止。"
           fi
-          
-          echo "判定结果: $VARIANT ($VARIANT_DESC)   [来源: Proxy 输入]"
+          echo "判定结果: $VARIANT ($VARIANT_DESC)  [来源: proxy 输入 = '${{ github.event.inputs.proxy }}']"
           echo "variant=$VARIANT" >> "$GITHUB_OUTPUT"
           echo "variant_desc=$VARIANT_DESC" >> "$GITHUB_OUTPUT"
      
