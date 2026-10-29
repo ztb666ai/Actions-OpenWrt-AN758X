@@ -1031,18 +1031,17 @@ jobs:
         with:
           name: OpenWrt_firmware_${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
           path: ${{ env.FIRMWARE }}
-      
       # =========================================================
-    	# 21.5 固件变体识别 —— 直接依据 workflow_dispatch 的 Proxy 输入
-    	#
-    	# 输入 -> 变体 映射（步骤 8.6 已把归一化结果写入 GITHUB_ENV）：
-    	#   ''          -> bare        （不装任何代理）
-    	#   openclash   -> openclash
-    	#   dae         -> dae
-    	#   honk        -> honk
-    	#
-    	# manifest 只做交叉校验（输入与实际打包一致才放行），不再用来判定变体。
-    	# =========================================================
+      # 21.5 固件变体识别 —— 直接依据 workflow_dispatch 的 Proxy 输入
+      #
+      # 输入 -> 变体 映射（步骤 8.6 已把归一化结果写入 GITHUB_ENV）：
+      #   ''          -> bare        （不装任何代理）
+      #   openclash   -> openclash
+      #   dae         -> dae
+      #   honk        -> honk
+      #
+      # manifest 只做交叉校验（输入与实际打包一致才放行），不再用来判定变体。
+      # =========================================================
       - name: Detect firmware variant
         id: variant
         if: env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success'
