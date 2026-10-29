@@ -23,8 +23,9 @@
 
 ## Release 3 个变体
 
-- 自带openclash版
-- 自带dae/honk版
+- openclash版
+- dae版
+- honk版
 - 啥都不带版
 
 ### AN7583 带硬解AES功能，AN7581带软解
