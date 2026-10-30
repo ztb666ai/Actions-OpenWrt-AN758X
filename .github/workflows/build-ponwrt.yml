@@ -1190,37 +1190,58 @@ jobs:
             ${{ env.FIRMWARE }}/*.tar.gz
             ${{ env.FIRMWARE }}/*.manifest
             ${{ env.FIRMWARE }}/*.json
-
+  
       # =========================================================
       # 23. 清理旧记录
-      # Release 清理：精确维持 4 个变体 Release（重复 build 由 22.1 覆盖，不累积）：
-      #   保留 ${DEVICE_NAME}-${REPO_BRANCH}-bare / -openclash / -dae / -honk
-      #   保留 toolchain-cache（步骤 11 的工具链备份，必须保留）
-      # 删除其余全部：历史产物、旧分档 tag（如 dae-honk）、其他机型 Release。
-      # 稳态下全仓库共 5 个 Release（4 变体 + toolchain-cache）。
+      # Release 清理：按「机型白名单」保留，每个机型保留 4 个变体：
+      #   ponwrt-${SOC}-${PROFILE}-${REPO_BRANCH}-{bare,openclash,dae,honk}
+      # 白名单机型：nokia_xg-040g-mf* → an7583，其余 → an7581
+      #   （与 Resolve device profile 步骤的 SOC 推断逻辑保持一致）
+      # 兜底：无论白名单怎么配，始终保留本次构建机型的 4 个变体 + toolchain-cache
+      # 稳态下 Release 数量 = 白名单机型数 × 4 + toolchain-cache
       # =========================================================
-      - name: Delete old releases (keep 4 variants + toolchain-cache)
+      - name: Delete old releases (keep whitelisted profiles + toolchain-cache)
         if: env.UPLOAD_RELEASE == 'true' && steps.tag.outputs.status == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 机型白名单（空格分隔，按需增删；新增机型记得加进来）
+          KEEP_PROFILES: 'nokia_xg-040g-mf-ubi nokia_xg-040g-md-ubi'
         run: |
-          KEEP="toolchain-cache
-          ${DEVICE_NAME}-${REPO_BRANCH}-bare
-          ${DEVICE_NAME}-${REPO_BRANCH}-openclash
-          ${DEVICE_NAME}-${REPO_BRANCH}-dae
-          ${DEVICE_NAME}-${REPO_BRANCH}-honk"
-          # gh api 列全量 Release tag；循环内 delete 加 </dev/null，
-          # 防止 gh 吃掉 while read 的管道 stdin 导致漏删
-          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --paginate -q '.[].tag_name' \
-          | while read -r tag; do
-              [ -n "$tag" ] || continue
-              if printf '%s\n' "$KEEP" | grep -qxF "$tag"; then
-                echo "保留: $tag"
-              else
-                echo "删除: $tag"
-                gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes </dev/null || true
-              fi
+          # 1) 组装保留清单：白名单机型 × 4 变体
+          KEEP="toolchain-cache"
+          for p in $KEEP_PROFILES; do
+            case "$p" in
+              nokia_xg-040g-mf*) soc=an7583 ;;
+              *)                 soc=an7581 ;;
+            esac
+            for v in bare openclash dae honk; do
+              KEEP="$KEEP ponwrt-${soc}-${p}-${REPO_BRANCH}-${v}"
             done
+          done
+
+          # 2) 兜底：强制保留本次构建机型的 4 个变体，
+          #    防止 KEEP_PROFILES 忘写当前机型导致刚发布的 Release 被删
+          for v in bare openclash dae honk; do
+            KEEP="$KEEP ${DEVICE_NAME}-${REPO_BRANCH}-${v}"
+          done
+
+          echo "==== 本次保留的 Release tag ===="
+          echo "$KEEP" | tr ' ' '\n' | grep -v '^$' | sort -u
+          echo "================================"
+
+          # 3) 遍历全量 Release，不在保留清单里的一律删除
+          #    循环内 delete 加 </dev/null，防止 gh 吃掉 while read 的
+          #    管道 stdin 导致漏删
+          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --paginate -q '.[].tag_name' \
+            | while read -r tag; do
+                [ -n "$tag" ] || continue
+                if echo "$KEEP" | tr ' ' '\n' | grep -qxF "$tag"; then
+                  echo "保留: $tag"
+                else
+                  echo "删除: $tag"
+                  gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes </dev/null || true
+                fi
+              done
 
       - name: Delete workflow runs
         if: steps.compile.outputs.status == 'success'
