@@ -587,10 +587,10 @@ jobs:
           echo "===== make defconfig ====="
           make defconfig 2>&1 | tail -5
 
-          # 定制中文安装包
+          # 定制简体中文翻译安装包
           chmod +x "$GITHUB_WORKSPACE/$DIY_P3_SH"
           "$GITHUB_WORKSPACE/$DIY_P3_SH"
-          # 如果是客户定制的话，下面重新 make defconfig就好
+          # 如果不要精简简体中文翻译包的话，下面重新 make defconfig就好
           #make defconfig
           
           # =========================================================
