@@ -378,6 +378,7 @@ CONFIG_PACKAGE_kmod-sched-cake=y
 CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
 CONFIG_PACKAGE_libopenssl-devcrypto=y
 CONFIG_PACKAGE_bpftool=y
+CONFIG_PACKAGE_kmod-veth=y
 
 # --- 关闭默认包的模板 ---
 # 普通包：# CONFIG_PACKAGE_xxx is not set
