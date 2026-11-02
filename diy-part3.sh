@@ -10,7 +10,7 @@
 
 # ---------- 可按需修改的白名单 ----------
 #KEEP="base package-manager"   # 要保留中文翻译的组件
-KEEP="base"   # 要保留中文翻译的组件
+KEEP="base luci-app-airoha-npu"   # 要保留中文翻译的组件
 # 需要临时多留几个时也可以用环境变量追加：KEEP_EXTRA="ddns-go" bash diy-part3.sh
 KEEP="$KEEP ${KEEP_EXTRA:-}"
 # ---------------------------------------
