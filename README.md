@@ -19,13 +19,13 @@
 - honk版
 - 啥都不带版
 
-注意，dae/honk版不带geoip.dat 和 geosite.dat数据，请自行下到目录下：
-  geoip.dat 和 geosite.dat 严格使用以下顺序中第一个已存在的普通文件：
-  $DAE_LOCATION_ASSET/<name>
-  <data_dir>/<name>
-  /var/share/honk/<name>（LEGACY_DATA_DIR）
-  进程工作目录中的 ./<name>
-  /usr/local/share/honk/<name>，然后 /usr/share/honk/<name>
+注意，dae/honk版不带geoip.dat 和 geosite.dat数据，请自行下到目录下：  
+geoip.dat 和 geosite.dat 严格使用以下顺序中第一个已存在的普通文件：  
+$DAE_LOCATION_ASSET/<name> <BR>
+  <data_dir>/<name> <BR>
+  /var/share/honk/<name>（LEGACY_DATA_DIR）<BR>
+  进程工作目录中的 ./<name> <BR>
+  /usr/local/share/honk/<name>，然后 /usr/share/honk/<name> <BR>
   /usr/local/share/dae/<name>、/usr/share/dae/<name>，然后 /etc/dae/<name>
 
 ### AN7583 带硬解AES功能，AN7581带软解
