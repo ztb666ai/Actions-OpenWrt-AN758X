@@ -264,10 +264,10 @@ strip_v2ray_geodeps "feeds/luci/applications/luci-app-dae" "luci-app-dae"
 strip_v2ray_geodeps "$PKG_DIR/honk"                        "luci-app-honk"
 
 # 一行搞定如下
-#sed -i -E -e 's/[[:space:]]*\+v2ray-(geoip|geosite)//g' \
-#          -e '/^[[:space:]]*\\[[:space:]]*$/d' \
-#          feeds/luci/applications/luci-app-dae/dae/Makefile \
-#          "$PKG_DIR/honk/honk/Makefile"
+sed -i -E -e 's/[[:space:]]*\+v2ray-(geoip|geosite)//g' \
+          -e '/^[[:space:]]*\\[[:space:]]*$/d' \
+          feeds/luci/applications/luci-app-dae/dae/Makefile \
+          "$PKG_DIR/honk/honk/Makefile"
 
 endgroup
 
