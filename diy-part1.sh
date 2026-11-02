@@ -234,6 +234,41 @@ if [ -d "$PKG_DIR/honk" ]; then
   done < <(find "$PKG_DIR/honk" -type f -name Makefile -print0)
   log "  ✅ honk Makefile 哈希占位修正: ${honk_patched} 处"
 fi
+
+# ------------------------------------------------------------------
+# 剔除 dae / honk Makefile 中的 +v2ray-geoip / +v2ray-geosite 依赖，
+# 避免连带编译安装 v2ray 数据包。
+# geo 路由所需 dat 文件改由运行时提供（v2ray-geodata 包或手动放置）。
+# https://github.com/daeuniverse/honk/blob/main/doc/zh/reference/global.md
+# <data_dir>/<name>
+# /usr/local/share/honk/ 
+#/usr/local/share/dae/
+# ------------------------------------------------------------------
+strip_v2ray_geodeps() {
+    local repo="$1" label="$2" hit=0
+    [ -d "$repo" ] || { log " ⚠ $repo 不存在，跳过: $label"; return 0; }
+    while IFS= read -r -d '' mk; do
+        grep -qE '\+v2ray-(geoip|geosite)' "$mk" || continue
+        sed -i -E \
+            -e 's/[[:space:]]*\+v2ray-geoip//g' \
+            -e 's/[[:space:]]*\+v2ray-geosite//g' \
+            -e '/^[[:space:]]*\\[[:space:]]*$/d' \
+            "$mk"
+        log " ✂ $label：已剔除 $(basename "$(dirname "$mk")")/Makefile 的 v2ray-geoip/v2ray-geosite 依赖"
+        hit=$((hit + 1))
+    done < <(find "$repo" -type f -name Makefile -print0)
+    (( hit > 0 )) || log " ⊘ $label：未发现 v2ray-geoip/v2ray-geosite 依赖"
+}
+
+strip_v2ray_geodeps "feeds/luci/applications/luci-app-dae" "luci-app-dae"
+strip_v2ray_geodeps "$PKG_DIR/honk"                        "luci-app-honk"
+
+# 一行搞定如下
+#sed -i -E -e 's/[[:space:]]*\+v2ray-(geoip|geosite)//g' \
+#          -e '/^[[:space:]]*\\[[:space:]]*$/d' \
+#          feeds/luci/applications/luci-app-dae/dae/Makefile \
+#          "$PKG_DIR/honk/honk/Makefile"
+
 endgroup
 
 
