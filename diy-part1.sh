@@ -271,6 +271,25 @@ sed -i -E -e 's/[[:space:]]*\+v2ray-(geoip|geosite)//g' \
 
 endgroup
 
+group "honk 下载源预检（staging 资产存在性）"
+if [ -d "$PKG_DIR/honk/honk" ]; then
+    HONK_BASE="https://github.com/kenzok8/openwrt-honk/releases/download/staging"
+    commit=$(sed -n 's/^CORE_COMMIT:=//p' "$PKG_DIR/honk/honk/Makefile")
+    for a in "honk-core-${commit}-x86_64.tar.gz" \
+             "honk-core-${commit}-aarch64.tar.gz" \
+             "honk-core-${commit}-armv7.tar.gz"; do
+        if curl -fsIL "$HONK_BASE/$a" >/dev/null; then
+            log " ✅ staging 存在: $a"
+        else
+            echo "::warning::staging 缺少 $a，固件编译时 honk 包会 404，需固定到 source-* tag"
+        fi
+    done
+    doona=$(sed -n 's/^PKG_SOURCE:=//p' "$PKG_DIR/honk/luci-app-honk/Makefile")
+    curl -fsIL "$HONK_BASE/$doona" >/dev/null || \
+        echo "::warning::staging 缺少 $doona"
+fi
+endgroup
+
 
 # ================================================================
 # 输出 GitHub Step Summary，Actions 页面直接看结果
