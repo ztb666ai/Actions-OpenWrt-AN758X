@@ -199,18 +199,15 @@ log "  ✅ 必装插件全部就绪: ${CRITICAL_PKGS[*]}"
 endgroup
 
 # ================================================================
-# 覆盖 feeds/luci 中自带的 dae / honk /openclash
+# 覆盖 feeds/luci 中自带的 dae / honk 
 # ================================================================
-group "覆盖 feeds/luci 中的 dae / openclash，并将 honk 放入 package/custom"
+group "覆盖 feeds/luci 中的 dae / honk，并将 honk 放入 package/custom"
 
 rm -rf feeds/luci/applications/luci-app-dae
 rm -rf feeds/luci/applications/luci-app-openclash
 rm -rf feeds/luci/applications/luci-app-honk
-# OpenClash update to new version
 
 clone https://github.com/QiuSimons/luci-app-dae    feeds/luci/applications/luci-app-dae
-#clone https://github.com/vernesong/OpenClash  feeds/luci/applications/luci-app-openclash
-clone --depth=1 -b dev https://github.com/vernesong/OpenClash.git feeds/luci/applications/luci-app-openclash
 # honk 是容器仓库，含 honk + luci-app-honk 两个包，必须放到 package/custom 下
 #clone https://github.com/kenzok8/openwrt-honk.git  feeds/luci/applications/luci-app-honk  "" --depth=1
 #clone https://github.com/kenzok8/openwrt-honk.git  "$PKG_DIR/honk"  "" --depth=1
@@ -292,6 +289,10 @@ endgroup
 #fi
 #endgroup
 
+# OpenClash update to new version
+rm -rf feeds/luci/applications/luci-app-openclash
+#git clone --depth=1 -b dev https://github.com/vernesong/OpenClash.git package/custom/openclash
+git clone --depth=1 -b dev https://github.com/vernesong/OpenClash.git feeds/luci/applications/luci-app-openclash
 
 # ================================================================
 # 输出 GitHub Step Summary，Actions 页面直接看结果
