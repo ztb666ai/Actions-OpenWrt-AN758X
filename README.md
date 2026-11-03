@@ -19,7 +19,7 @@
 - honk版
 - 啥都不带版
 
-注意，dae/honk版不带geoip.dat 和 geosite.dat数据，请自行下到目录下：  
+注意，dae/honk版如果不带geoip.dat 和 geosite.dat数据的话（看启动log），请自行下到目录下：  
 geoip.dat 和 geosite.dat 严格使用以下顺序中第一个已存在的普通文件：  
 $DAE_LOCATION_ASSET/<name> <BR>
   <data_dir>/<name> <BR>
