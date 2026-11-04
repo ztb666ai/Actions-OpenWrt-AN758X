@@ -664,35 +664,7 @@ jobs:
           echo "缓存 Key  : $CACHE_KEY"
           echo "缓存前缀  : $CACHE_PREFIX"
           echo "========================================"
-      
-      - name: Install honk-core toolchain (rust + bpf-linker + zig)
-        run: |
-          cd /workdir/openwrt/package/custom/honk/honk
-          # 预编译版 Makefile 没有 HONK_SRC_URL，直接跳过（防止维护者切回预编译后白装）
-          grep -q '^HONK_SRC_URL:=' Makefile || { echo "honk 包为预编译版，无需工具链"; exit 0; }
-      
-          # 1) 解析 pin：zig / bpf-linker 版本必须严格等于上游锁定值
-          eval "$(./honk_toolchain.sh)"
-          echo "ZIG_VERSION=$ZIG_VERSION  BPF_LINKER=$BPF_LINKER_VERSION"
-      
-          # 2) cargo（脚本会检查，缺了照样挂）
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --no-modify-path
-      
-          # 3) bpf-linker（带 SHA256 校验）
-          curl -fsSL --retry 3 -o /tmp/bpf-linker.tar.zst \
-            "https://github.com/aya-rs/bpf-linker/releases/download/v${BPF_LINKER_VERSION}/bpf-linker-x86_64-unknown-linux-musl.tar.zst"
-          echo "${BPF_LINKER_SHA256}  /tmp/bpf-linker.tar.zst" | sha256sum -c -
-          sudo tar --zstd -xf /tmp/bpf-linker.tar.zst -C /usr/local/bin
-      
-          # 4) zig（runner 是 x86_64；不要手写版本号，用解析出来的 pin）
-          curl -fsSL --retry 3 -o /tmp/zig.tar.xz \
-            "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
-          sudo tar -xJf /tmp/zig.tar.xz -C /usr/local
-          sudo ln -sf "/usr/local/zig-x86_64-linux-${ZIG_VERSION}/zig" /usr/local/bin/zig
-      
-          zig version   # 自检：必须恰好输出 ${ZIG_VERSION}
-
-    
+  
       # =========================================================
       # 9.1 代理变体核心包校验：defconfig 会把 feeds 里不存在的包静默剔除，
       #     若 diy-part1.sh 未拉到 honk / dae 对应源，tag 会挂成错误变体。
