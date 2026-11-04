@@ -214,6 +214,28 @@ clone https://github.com/QiuSimons/luci-app-dae    feeds/luci/applications/luci-
 #clone https://github.com/QiuSimons/luci-app-honk.git  feeds/luci/applications/luci-app-honk  "" --depth=1
 clone https://github.com/QiuSimons/luci-app-honk.git  "$PKG_DIR/honk"  "" --depth=1
 # ------------------------------------------------------------------
+# 预放 honk-core.bin：--if-needed 检测到无 stamp 的产物会直接复用，
+# 跳过 zig/bpf-linker/cargo 工具链校验和源码编译
+# ------------------------------------------------------------------
+HONK_DIR="$PKG_DIR/honk/honk"
+HONK_OUT="$HONK_DIR/files/honk-core.bin"
+if [ -s "$HONK_OUT" ]; then
+    log " ↷ honk-core.bin 已存在，跳过预放"
+else
+    group "预放 honk-core.bin（免 zig 工具链）"
+    curl -fsSL --retry 3 -o /tmp/honk-core.tar.gz \
+      "https://github.com/daeuniverse/honk/releases/download/v0.1.0-beta.2/honk-core-v0.1.0-beta.2-aarch64-unknown-linux-musl-stock-native-api.tar.gz"
+    echo "bef60542db1d29fa87ad3b5300d0960a1bd173b7ba1121b423b27985a202eb2c  /tmp/honk-core.tar.gz" | sha256sum -c -
+    rm -rf /tmp/honkpkg && mkdir -p /tmp/honkpkg
+    tar -xzf /tmp/honk-core.tar.gz -C /tmp/honkpkg
+    core="$(find /tmp/honkpkg -type f -name honk-core -print -quit)"
+    [ -n "$core" ] || die "tarball 内未找到 honk-core，release 结构可能已变"
+    mkdir -p "$HONK_DIR/files"
+    cp "$core" "$HONK_OUT"
+    log " ✅ 已预放 honk-core.bin ($(du -h "$HONK_OUT" | cut -f1))"
+    endgroup
+fi
+# ------------------------------------------------------------------
 # honk 仓库的 Makefile 把 PKG_HASH 写成大写 SKIP 占位，
 # OpenWrt scripts/download.pl 只识别小写 skip 跳过校验；
 # 大写 SKIP 会触发 "Cannot find appropriate hash command ..."。
