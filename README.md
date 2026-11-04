@@ -12,7 +12,7 @@
 | AN7581 | `fiberhome_hg5382a` `fiberhome_hg5585f-ct` `fiberhome_hg5585f-cu` `gemtek_xg2010g` `nokia_xg-040g-md-ubi` `nokia_xg-040g-tf-ubi` `unionman_ung00a` `znxt_zn504xg-d` `znxt_zn515xg-d` |
 | AN7583 | `nokia_xg-040g-mf` `nokia_xg-040g-mf-ubi` |
 
-## Release 4 个变体
+## Release 4 个变体(强烈推荐 openclash和honk，openclash最简单好用，honk需要折腾一下)
 
 - openclash版
 - dae版
