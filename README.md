@@ -16,7 +16,7 @@
 
 - openclash版
 - dae版
-- honk版
+- honk版 采用404大佬的库https://github.com/QiuSimons/luci-app-honk，感谢大佬
 - 啥都不带版
 
 注意，dae/honk版如果不带geoip.dat 和 geosite.dat数据的话（看启动log），请自行下到目录下：  
