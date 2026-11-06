@@ -19,7 +19,8 @@
 - honk版 采用404大佬的库 感谢大佬 https://github.com/QiuSimons/luci-app-honk
 - 啥都不带版
 
-注意，dae/honk版如果不带geoip.dat 和 geosite.dat数据的话（看启动log），请自行下到目录下：  
+注意，本hub编译的404大佬的honk自带v2ray的geoip/site库（/user/share/v2ray/），在honk启动时候加入变量引入使用。
+dae/honk版如果不带geoip.dat 和 geosite.dat数据的话（看启动log），请自行下到目录下：  
 geoip.dat 和 geosite.dat 严格使用以下顺序中第一个已存在的普通文件：  
 $DAE_LOCATION_ASSET/<name> <BR>
   <data_dir>/<name> <BR>
