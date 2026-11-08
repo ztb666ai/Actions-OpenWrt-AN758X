@@ -14,8 +14,8 @@
 
 ## Release 4 个变体(强烈推荐 openclash和honk，openclash最简单好用，honk需要折腾一下)
 
-- openclash版
-- dae版
+- openclash版 https://github.com/vernesong/OpenClash
+- dae版 https://github.com/daeuniverse/dae
 - honk版 采用404大佬的库 感谢大佬 https://github.com/QiuSimons/luci-app-honk
 - 啥都不带版
 
