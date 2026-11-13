@@ -551,6 +551,7 @@ jobs:
           case "$VARIANT" in
             openclash)
               echo 'CONFIG_PACKAGE_luci-app-openclash=y' >> .config
+              echo 'CONFIG_PACKAGE_luci-compat=y' >> .config
               ;;
             dae)
               echo 'CONFIG_PACKAGE_luci-app-dae=y' >> .config
