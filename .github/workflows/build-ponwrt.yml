@@ -93,7 +93,7 @@ on:
       disable_packages:
         description: '要禁用的包（空格分隔，例: nano htop tcpdump）'
         required: false
-        default: 'luci-app-ddns nano luci-app-tailscale-community tailscale'  
+        default: 'luci-app-ddns nano luci-app-tailscale-community tailscale luci-app-msd_lite msd_lite luci-i18n-msd_lite-zh-cn luci-i18n-ddns-zh-cn'  
       scope:
         description: '构建范围 (toolchain-only 仅预热工具链缓存)'
         required: true
