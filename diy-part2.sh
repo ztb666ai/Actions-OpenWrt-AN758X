@@ -349,7 +349,10 @@ if [ -f .config ]; then
 
 # ==== build-mf-NoOC 12. Custom configuration (diy-part2 port) ====
 # --- 附加应用 ---
-CONFIG_PACKAGE_udpxy=y
+#CONFIG_PACKAGE_udpxy=y
+CONFIG_PACKAGE_rtp2httpd=y
+CONFIG_PACKAGE_luci-app-rtp2httpd=y
+CONFIG_PACKAGE_luci-i18n-rtp2httpd-zh-cn=y
 CONFIG_PACKAGE_acme-acmesh-dnsapi=y
 CONFIG_PACKAGE_luci-app-acme=y
 CONFIG_PACKAGE_luci-ssl-openssl=y
