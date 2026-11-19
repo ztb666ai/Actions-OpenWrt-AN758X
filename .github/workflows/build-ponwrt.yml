@@ -579,6 +579,37 @@ jobs:
               ;;
           esac
           echo "✅ 代理变体注入完成: $VARIANT"
+    
+      # =========================================================
+      # 8.7 动态禁用不需要的软件包
+      #      用法1：改 env.DISABLE_PACKAGES 默认值
+      #      用法2：workflow_dispatch 触发时填 disable_packages 输入
+      #      注意：正确语法是 "# CONFIG_x is not set"，不是 "=n"
+      # =========================================================
+      - name: Disable unwanted packages
+        env:
+          DISABLE_PACKAGES: ${{ github.event.inputs.disable_packages || 'luci-app-ddns nano luci-app-tailscale-community tailscale' }}
+        run: |
+          cd openwrt
+          set -euo pipefail
+          echo ">>> 计划禁用: ${DISABLE_PACKAGES:-<无>}"
+          for name in $DISABLE_PACKAGES; do
+            [ -n "$name" ] || continue
+            sym="CONFIG_PACKAGE_${name}"
+            sed -i -E "s/^${sym}=(y|m)\$/# ${sym} is not set/" .config
+            grep -qE "^# ${sym} is not set\$" .config \
+              || echo "# ${sym} is not set" >> .config
+            echo "  ✔ ${name}"
+          done
+          make defconfig
+          for name in $DISABLE_PACKAGES; do
+            [ -n "$name" ] || continue
+            if grep -qE "^CONFIG_PACKAGE_${name}=(y|m)" .config; then
+              echo "ERROR: ${name} 禁用失败（可能被其他已选包 select 依赖）"
+              exit 1
+            fi
+          done
+          echo "✔ 软件包裁剪完成"
 
       # =========================================================
       # 9. defconfig + 生成工具链缓存 Key + 校验机型
