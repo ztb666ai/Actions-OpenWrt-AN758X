@@ -11,7 +11,9 @@ env:
   # https://github.com/jzhou404gmail/ponwrt/
   #https://github.com/yveming/openwrt-pon
   FW_AUTHOR: 'ztb'
-  REPO_URL: ${{ github.event.inputs.source == 'pbs05/ponwrt' && 'https://github.com/pbs05/ponwrt' || 'https://github.com/ztb666ai/ponwrt' }}
+# https://github.com/wuziwei/ponwrt-ZN504-HG5585F/ 
+# https://github.com/ztb666ai/ponwrt
+  REPO_URL: ${{ github.event.inputs.source == 'pbs05/ponwrt' && 'https://github.com/pbs05/ponwrt' || 'https://github.com/wuziwei/ponwrt-ZN504-HG5585F' }}
   FEEDS_CONF: ''
   DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
