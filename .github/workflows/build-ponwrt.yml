@@ -252,7 +252,7 @@ jobs:
 
           # 输入项为空时回退到 workflow 级默认值，确保 diy-part2.sh 拿到的
           # 始终是确定值，而不是空串（空串会让 LuCI 概览页显示 "·  ·"）。
-          echo "FW_AUTHOR=${FW_AUTHOR:-qwe}" >> "$GITHUB_ENV"
+          echo "FW_AUTHOR=${FW_AUTHOR:-ztb}" >> "$GITHUB_ENV"
 
           cd openwrt && echo "commit: $(git rev-parse --short HEAD)"
       # =========================================================
@@ -261,6 +261,7 @@ jobs:
       # SoC 特定：crypto（an7583 开 CE 硬件 AES，an7581 走 BS 软 AES）
       # =========================================================
       - name: Patch kernel config (generic + SoC-specific)
+        if: env.soc == 'an7583' #   none for ignore  if: env.SOC == 'an7581'
         run: |
           cd "$BUILD_ROOT/openwrt"
       
@@ -313,7 +314,7 @@ jobs:
           CONFIG_CRYPTO_USER_API_SKCIPHER=y
           EOF
               ;;
-            an7581)
+            an7581)           #  an7581)
               cat >> "$KCONF" <<'EOF'
           CONFIG_CRYPTO_AES=y
           CONFIG_CRYPTO_AES_ARM64=y
@@ -353,7 +354,7 @@ jobs:
       # AN7581 无 ARMv8 CE，走 NEON 位切片 + generic；EIP-93 可选硬件路径
       # =========================================================
       - name: Patch an7581 kernel crypto config
-        if: env.SOC == 'an7581'
+        if: env.source == 'pbs05/ponwrt' #        if: env.SOC == 'an7581'
         run: |
           cd "$BUILD_ROOT/openwrt"
           KCONF="target/linux/airoha/an7581/config-6.18"
